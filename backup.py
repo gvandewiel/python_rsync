@@ -6,6 +6,7 @@ import hashlib
 import subprocess
 from pprint import pprint
 
+
 class Backup():
     """Backup Script.
     Run incrimental backup of a MacBook Pro to a synology diskstation
@@ -80,7 +81,7 @@ class Backup():
 
         # Check if a SSH connection is possible and the
         # provided directory is accesible, returns ssh object
-        ssh = self.__check_ssh__(host=self.source_host, username=self.source_user, remote_dir=source_dir)
+        self.__check_ssh__(host=self.source_host, username=self.source_user, remote_dir=source_dir)
 
         # retrieve last backup date
         prev_id = self.get_previous_id(source_dir)
@@ -101,7 +102,7 @@ class Backup():
         backup_target = self.get_backup_target(target_dir, new_id, subfolder)
 
         # Check modification date of log file (if file exists)
-        log_date = self.get_log_date()
+        self.get_log_date()
 
         # Start backup
         self.start_rsync(prev_id, new_id, subfolder, prev_target, backup_source, backup_target)
@@ -180,7 +181,7 @@ class Backup():
         if host and username and remote_dir:
             ssh_server = '{}@{}'.format(username, host)
             ssh_cmd = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', ssh_server, 'echo ok']
-            
+
             ssh = subprocess.check_output(ssh_cmd).decode('utf-8').strip()
             if ssh == 'ok':
                 print('    - SSH connection established')
@@ -242,10 +243,11 @@ class Backup():
         print('    - Extra rsync options: {}'.format(self.extra_arguments))
         print('\n  * Running rsync with:'.format(arguments))
         pprint(arguments[1:])
-        
+
         with subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1, universal_newlines=True) as p:
             for line in p.stdout:
-                print(line, end='')
+                if line.startswith(('[sender]', 'hf')):
+                    print(line, end='')
                 self.logfile.write(line)
             for line in p.stderr:
                 print(line, end='')
