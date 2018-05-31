@@ -75,7 +75,7 @@ class Backup():
 
         self.logfile = open(self.log_file, 'a')
         self.errlogfile = open(self.errlog_file, 'a')
-p
+        
         # Loop over all backup sets
         self.send_message(title="Remote backup", subtitle="Pre-run check", message="Check if backup is possible and/or required")
 
