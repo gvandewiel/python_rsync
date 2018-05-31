@@ -5,6 +5,7 @@ import configparser
 import hashlib
 import subprocess
 from pprint import pprint
+from wakeonlan import send_magic_packet
 
 class Backup():
     """Backup Script.
@@ -174,10 +175,12 @@ class Backup():
         else:
             return ''
 
-    def __check_ssh__(self, host='', username='', remote_dir=''):
+    def __check_ssh__(self, host='', username='', hwaddr='', remote_dir=''):
+        """Check if server is live"""
+        live = self.__ipcheck__(host, hwaddr)
         """Check is ssh connection can be made to source."""
         print('  * Checking SSH connection to remote source')
-        if host and username and remote_dir:
+        if host and username and remote_dir and live:
             ssh_server = '{}@{}'.format(username, host)
             ssh_cmd = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', ssh_server, 'echo ok']
             
@@ -197,9 +200,26 @@ class Backup():
                 print('    - SSH connection could not be established')
                 return False
         else:
-            print('    - No host, username or remote_dir provided')
+            if live:
+                print('    - No host, username or remote_dir provided')
+            else:
+                print('    - Server seems to be down')
             return False
 
+    def __ipcheck__(self, host, hwaddr):
+        """Check server status.
+        Checks if server is available by sending a ping.
+        If the response is false, upto 5 WOL commands will be send.
+        """
+        
+        for cnt in range(0,6):
+            status,result = subprocess.getstatusoutput("ping -c1 -w2 " + str(host))
+            if status == 0:
+                break
+            else:
+                send_magic_packet(str(hwaddr))
+        return status == 0
+        
     def start_rsync(self, prev_id, new_id, subfolder, prev_target, backup_source, backup_target):
         arguments = [
             "rsync",
