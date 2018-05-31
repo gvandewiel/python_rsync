@@ -373,7 +373,7 @@ class Backup():
                               universal_newlines=True) as p:
 
             for line in p.stdout:
-                if line.startswith(('[sender]','hf')):
+                if not line.startswith(('[sender]','hf')):
                     print(line, end='')
                 self.logfile.write(line)
             for line in p.stderr:
