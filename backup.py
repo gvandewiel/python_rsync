@@ -1,3 +1,7 @@
+"""Backup script.
+
+Performs rsync backup from MacBook to Synology diskstation
+"""
 import os
 import sys
 from datetime import datetime
@@ -7,28 +11,36 @@ import subprocess
 from pprint import pprint
 from wakeonlan import send_magic_packet
 
+class c:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 class Backup():
     """Backup Script.
+
     Run incrimental backup of a MacBook Pro to a synology diskstation
     over an SSH connection.
     """
 
     def __init__(self, settings_file='', extra_arguments=[]):
-        # Check if a settings file is provided
-        fp = os.path.dirname(os.path.abspath(__file__))
-        print("#### CURRENT DIR = {}".format(fp))
+        """Backup class."""
+        # Base dir of backup script
+        # Current directory of backup script
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
 
         if settings_file != '':
             self.settings = configparser.ConfigParser()
             self.settings._interpolation = configparser.ExtendedInterpolation()
-            self.settings.read(os.path.join(fp, settings_file))
+            self.settings.read(os.path.join(self.base_dir, settings_file))
 
             # Store extra rsync arguments
             self.extra_arguments = extra_arguments
-
-            # Base dir of backup script
-            # Current directory of backup script
-            self.base_dir = os.getcwd()
 
             # Current time
             self.start = datetime.now().strftime('%Y-%m-%d (%H:%M:%S)')
@@ -51,37 +63,47 @@ class Backup():
         # Get general backup settings (SSH settings, log files)
         self.source_user = settings.get('general_settings', 'source_user')
         self.source_host = settings.get('general_settings', 'source_host')
+        self.hwaddr = settings.get('general_settings', 'hwaddr')
 
         self.target_user = settings.get('general_settings', 'target_user')
         self.target_host = settings.get('general_settings', 'target_host')
 
+        self.backup_root = settings.get('general_settings', 'backup_root')
+
         self.log_file = settings.get('general_settings', 'log_file')
         self.errlog_file = settings.get('general_settings', 'errlog_file')
 
-        self.logfile = open(self.log_file, 'w')
-        self.errlogfile = open(self.errlog_file, 'w')
-
-        print('Backing up the following configurations:')
-        for section in settings.sections():
-            if section != 'general_settings':
-                print('  - {} to {}'.format(settings.get(section, 'source_dir'), settings.get(section, 'target_dir')))
-
+        self.logfile = open(self.log_file, 'a')
+        self.errlogfile = open(self.errlog_file, 'a')
+p
         # Loop over all backup sets
+        self.send_message(title="Remote backup", subtitle="Pre-run check", message="Check if backup is possible and/or required")
+
         for section in settings.sections():
             if section != 'general_settings':
-                print('Starting backup of: {} to {}'.format(settings.get(section, 'source_dir'), settings.get(section, 'target_dir')))
-                self.backup(section)
+                print(c.OKBLUE + c.BOLD + '  * Checking backup of' + c.ENDC + '\n\tSource: {}\n\tTarget:{}'.format(settings.get(section, 'source_dir'), settings.get(section, 'target_dir')))
+                print(c.ENDC)
+                new_id, update = self.backup(section)
 
+        # Close log files
         self.logfile.close()
         self.errlogfile.close()
 
+        if update:
+            self.update_symlink(new_id)
+
+        self.send_message(title="Remote backup", subtitle="Finished", message="All backup tasks have finished")
+
     def backup(self, section):
+        """Do the actual backup routine."""
         source_dir = self.settings.get(section, 'source_dir')
         target_dir = self.settings.get(section, 'target_dir')
 
         # Check if a SSH connection is possible and the
         # provided directory is accesible, returns ssh object
-        ssh = self.__check_ssh__(host=self.source_host, username=self.source_user, remote_dir=source_dir)
+        self.__check_ssh__(host=self.source_host,
+                           username=self.source_user,
+                           remote_dir=source_dir)
 
         # retrieve last backup date
         prev_id = self.get_previous_id(source_dir)
@@ -89,39 +111,104 @@ class Backup():
         # Set new backup date
         new_id = self.get_new_id()
 
-        # Set target for new backup
-        subfolder = self.get_basename(source_dir)
+        # Start backup if not performed today
+        if new_id != prev_id:
 
-        # Set previous backup target
-        prev_target = self.get_previous_target(target_dir, prev_id, subfolder)
+            # Set target for new backup
+            subfolder = self.get_basename(source_dir)
 
-        # Set backup source
-        backup_source = self.get_backup_source(source_dir)
+            # Set previous backup target
+            prev_target = self.get_previous_target(target_dir, prev_id, subfolder)
 
-        # Set backup target
-        backup_target = self.get_backup_target(target_dir, new_id, subfolder)
+            # Set backup source
+            backup_source = self.get_backup_source(source_dir)
 
-        # Check modification date of log file (if file exists)
-        log_date = self.get_log_date()
+            # Set backup target
+            backup_target = self.get_backup_target(target_dir, new_id, subfolder)
 
-        # Start backup
-        self.start_rsync(prev_id, new_id, subfolder, prev_target, backup_source, backup_target)
+            # Check modification date of log file (if file exists)
+            log_date = self.get_log_date()
+
+            self.prep_rsync(target_dir, new_id)
+
+            self.start_rsync(prev_id,
+                             new_id,
+                             subfolder,
+                             prev_target,
+                             backup_source,
+                             backup_target)
+
+            # Update current directory
+            if '--dry-run' in self.extra_arguments:
+                print('\n'+ c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of statefile.' + c.ENDC)
+            else:
+                self.update_state(source_dir, new_id, target_dir)
+
+            new = True
+        else:
+            # No backup performed
+            print(c.FAIL + c.BOLD + '  *** Backup is already perfomed today, skipping... ***\n' + c.ENDC)
+            new = False
+
+        return new_id, new
+
+    def send_message(self, title, subtitle, message):
+        ssh_server = '{}@{}'.format(self.source_user, self.source_host)
+        remote_cmd = "osascript -e 'display notification \"{message}\" with title \"{title} ({now})\" subtitle \"{subtitle}\"'".format(title=title, subtitle=subtitle, message=message, now=datetime.now().strftime('%d-%m-%Y %H:%M'))
+        ssh_cmd = ['ssh', ssh_server, remote_cmd]
+        subprocess.check_output(ssh_cmd)
+
+    def prep_rsync(self, target_dir, new_id):
+        """Create new subfolder."""
+        if self.target_host and self.target_user:
+            # Remote target
+            new_dir = '{}@{}:{}'.format(self.target_user, self.target_host, os.path.join(target_dir,new_id))
+            subprocess.Popen(['rsync', '--quiet', '/dev/null', new_dir])
+        else:
+            # Local target
+            new_dir = '{}'.format(os.path.join(target_dir,new_id))
+            if not os.path.exists(new_dir):
+                os.mkdir(new_dir)
+
+    def update_symlink(self, new_id):
+        print(c.OKBLUE + c.BOLD + '  * Creating symlink "current" directory' + c.ENDC)
+        src = os.path.join(self.backup_root, new_id)
+        dst = os.path.join(self.backup_root, 'current')
+        try:
+            os.unlink(dst)
+            os.symlink(src, dst)
+            print(c.OKGREEN + c.BOLD + "    - Symlink created" + c.ENDC)
+        except:
+            os.symlink(src, dst)
+            print(c.OKGREEN + c.BOLD + "    - Symlink created" + c.ENDC)
+
+    def update_state(self, source_dir, new_id, target_dir):
+        """Retrieve last backup date for source dir."""
+
+        source_hash = self.__create_hash__(source_dir)
+        print('\n'+c.OKBLUE + c.BOLD + '  * Updating statefile with hash "{}" to {}'.format(source_hash, new_id))
+        print(c.ENDC)
+
+        state_file = os.path.join(self.state_dir, str(source_hash))
+        with open(state_file, 'w') as f:
+            f.write(new_id)
 
     def get_previous_id(self, source_dir):
         """Retrieve last backup date for source dir."""
-        print('  * Checking for last backup date')
+        print(c.OKBLUE + c.BOLD + '  * Checking for last backup date' + c.ENDC)
         source_hash = self.__create_hash__(source_dir)
         print('    - Source hash = {}'.format(source_hash))
 
         state_file = os.path.join(self.state_dir, str(source_hash))
         if os.path.isfile(state_file):
             with open(state_file, 'r') as f:
-                print('    - {}'.format(f.readline()))
-                return f.readline()
+                line = f.readline()
+                print('    - {}'.format(line))
+                return line
         else:
-            print('    - No statefile found')
-            print('    - {}*'.format(self.get_new_id()))
-            return self.get_new_id()
+            print(c.WARNING + '    - No statefile found' + c.ENDC)
+            print(c.FAIL + '    - No link-dest available' + c.ENDC)
+            return ''
 
     def get_new_id(self):
         """Generte new id based on current date."""
@@ -175,35 +262,34 @@ class Backup():
         else:
             return ''
 
-    def __check_ssh__(self, host='', username='', hwaddr='', remote_dir=''):
+    def __check_ssh__(self, host='', username='', remote_dir=''):
         """Check if server is live"""
-        live = self.__ipcheck__(host, hwaddr)
+        live = self.__ipcheck__(host, self.hwaddr)
         """Check is ssh connection can be made to source."""
-        print('  * Checking SSH connection to remote source')
+        print(c.OKBLUE + c.BOLD + '  * Checking SSH connection to remote source' + c.ENDC)
         if host and username and remote_dir and live:
             ssh_server = '{}@{}'.format(username, host)
             ssh_cmd = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', ssh_server, 'echo ok']
-            
+
             ssh = subprocess.check_output(ssh_cmd).decode('utf-8').strip()
             if ssh == 'ok':
-                print('    - SSH connection established')
+                print(c.OKGREEN + '    - SSH connection established' + c.ENDC)
                 ssh_cmd = ['ssh', ssh_server, '[ ! -d \'{}\' ]'.format(remote_dir)]
                 ssh = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE)
                 ssh.communicate()[0]
                 if ssh.returncode == 1:
-                    print('    - Directory "{}" exists'.format(remote_dir))
+                    print(c.OKGREEN + '    - Directory "{}" exists'.format(remote_dir))
+                    print(c.ENDC)
                     return True
                 else:
-                    print('    - Directory "{}" does not exists'.format(remote_dir))
+                    print(c.FAIL + '    - Directory "{}" does not exists'.format(remote_dir))
+                    print(c.ENDC)
                     return False
             else:
-                print('    - SSH connection could not be established')
+                print(c.FAIL + '    - SSH connection could not be established' + c.ENDC)
                 return False
         else:
-            if live:
-                print('    - No host, username or remote_dir provided')
-            else:
-                print('    - Server seems to be down')
+            print(c.FAIL + '    - No host, username or remote_dir provided' + c.ENDC)
             return False
 
     def __ipcheck__(self, host, hwaddr):
@@ -219,7 +305,7 @@ class Backup():
             else:
                 send_magic_packet(str(hwaddr))
         return status == 0
-        
+
     def start_rsync(self, prev_id, new_id, subfolder, prev_target, backup_source, backup_target):
         arguments = [
             "rsync",
@@ -234,7 +320,8 @@ class Backup():
             "--verbose",
             "--human-readable",
             "--delete-excluded",
-            "--ignore-existing"
+            "--ignore-existing",
+            "--stats"
         ]
 
         # Add exclude list to arguments
@@ -252,7 +339,7 @@ class Backup():
         # Add backup target
         arguments.append(backup_target)
 
-        print('  * Backup configuration:')
+        print(c.HEADER + c.BOLD + '  * Backup configuration:' + c.ENDC)
         print('    - Source Directory   : {}'.format(backup_source))
         print('    - Target Directory   : {}'.format(backup_target))
         print('    - Previous Directory : {}'.format(prev_target))
@@ -260,12 +347,31 @@ class Backup():
         print('    - New snapshot       : {}'.format(new_id))
         print('    - Snapshot subfolder : {}'.format(subfolder))
         print('    - Extra rsync options: {}'.format(self.extra_arguments))
-        print('\n  * Running rsync with:'.format(arguments))
-        pprint(arguments[1:])
-        
-        with subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1, universal_newlines=True) as p:
+        print('')
+        print(c.HEADER + c.BOLD + '  * Running rsync with:' + c.ENDC)
+        for arg in arguments[1:]:
+        	print('    {}'.format(arg))
+
+        self.logfile.seek(0, 0)
+        self.logfile.truncate
+
+        self.errlogfile.seek(0, 0)
+        self.errlogfile.truncate
+
+        # Start the actual backup
+        # Send message to the osx notifaction centre
+        self.send_message(title="Remote backup", subtitle=subfolder, message="Starting backup...")
+
+        # Start backup...
+        with subprocess.Popen(arguments,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE,
+                              bufsize=1,
+                              universal_newlines=True) as p:
+
             for line in p.stdout:
-                print(line, end='')
+                if line.startswith(('[sender]','hf')):
+                    print(line, end='')
                 self.logfile.write(line)
             for line in p.stderr:
                 print(line, end='')
@@ -275,12 +381,10 @@ class Backup():
             raise subprocess.CalledProcessError(p.returncode, p.args)
             self.logfile.close()
             self.errlogfile.close()
-        """"
-        with open(self.log_file, 'w') as logfile:
-            with open(self.errlog_file, 'w') as errlogfile:
-                subprocess.Popen(arguments, stdout=logfile, stderr=errlogfile)
-        """
 
 
 if __name__ == '__main__':
-    Backup(settings_file=sys.argv[1:2], extra_arguments=sys.argv[2:])
+    try:
+        Backup(settings_file=sys.argv[1], extra_arguments=sys.argv[2:])
+    except:
+        Backup(settings_file=sys.argv[1], extra_arguments=[])
