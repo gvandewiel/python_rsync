@@ -77,7 +77,10 @@ class Backup():
         self.errlogfile = open(self.errlog_file, 'a')
         
         # Loop over all backup sets
-        self.send_message(title="Remote backup", subtitle="Pre-run check", message="Check if backup is possible and/or required")
+        """Check if server is live"""
+        live = self.__ipcheck__(host, self.hwaddr)
+        if host and username and live:
+            self.send_message(title="Remote backup", subtitle="Pre-run check", message="Check if backup is possible and/or required")
 
         for section in settings.sections():
             if section != 'general_settings':
