@@ -78,8 +78,8 @@ class Backup():
         
         # Loop over all backup sets
         """Check if server is live"""
-        live = self.__ipcheck__(host, self.hwaddr)
-        if host and username and live:
+        live = self.__ipcheck__(self.source_host, self.hwaddr)
+        if self.source_host and self.source_user and live:
             self.send_message(title="Remote backup", subtitle="Pre-run check", message="Check if backup is possible and/or required")
 
         for section in settings.sections():
