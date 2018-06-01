@@ -303,7 +303,7 @@ class Backup():
         """
         
         for cnt in range(0,6):
-            status,result = subprocess.getstatusoutput("ping -c1 -w2 " + str(host))
+            status,result = subprocess.getstatusoutput("ping -c5 -w2 " + str(host))
             if status == 0:
                 break
             else:
