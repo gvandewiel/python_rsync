@@ -304,7 +304,7 @@ class Backup():
         status,result = subprocess.getstatusoutput("ping -w2 " + str(host))
         if status != 0:
             for cnt in range(0,5):
-                print(c.OKBLUE + '    Trying to wake remote host' + c.ENDC)
+                print(c.FAIL + '    - Trying to wake remote host' + c.ENDC)
                 send_magic_packet(str(hwaddr))
                 status,result = subprocess.getstatusoutput("ping -w10 " + str(host))
                 if status == 0:
@@ -313,8 +313,7 @@ class Backup():
         if status == 0:
             return True
         else:
-            print('Server seems down')
-            print(status)
+            print(c.FAIL + '    - Server seems down' + c.ENDC)
             return False
 
     def start_rsync(self, prev_id, new_id, subfolder, prev_target, backup_source, backup_target):
