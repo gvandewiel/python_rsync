@@ -309,7 +309,12 @@ class Backup():
             else:
                 print(c.OKBLUE + '    Trying to wake remote host' + c.ENDC)
                 send_magic_packet(str(hwaddr))
-        return status == 0
+        if status == 0:
+            return True
+        else:
+            print('Server seems down')
+            print(status)
+            return False
 
     def start_rsync(self, prev_id, new_id, subfolder, prev_target, backup_source, backup_target):
         arguments = [
