@@ -12,14 +12,15 @@ from pprint import pprint
 from wakeonlan import send_magic_packet
 
 class c:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+    HEADER = '\e[95m'
+    OKBLUE = '\e[94m'
+    OKGREEN = '\e[92m'
+    WARNING = '\e[93m'
+    FAIL = '\e[91m'
+    ENDC = '\e[0m'
+    BOLD = '\e[1m'
+    UNDERLINE = '\e[4m'
+    DIM = '\e[2m'
 
 class Backup():
     """Backup Script.
@@ -382,6 +383,8 @@ class Backup():
             for line in p.stdout:
                 if not line.startswith(('[sender]','hf')):
                     print(line, end='')
+                else:
+                    print(c.DIM + line, end='')
                 self.logfile.write(line)
             for line in p.stderr:
                 print(line, end='')
