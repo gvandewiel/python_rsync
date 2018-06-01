@@ -75,7 +75,7 @@ class Backup():
 
         self.logfile = open(self.log_file, 'a')
         self.errlogfile = open(self.errlog_file, 'a')
-        
+
         # Loop over all backup sets
         """Check if server is live"""
         print(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
@@ -301,14 +301,15 @@ class Backup():
         Checks if server is available by sending a ping.
         If the response is false, upto 5 WOL commands will be send.
         """
-        
-        for cnt in range(0,6):
-            status,result = subprocess.getstatusoutput("ping -c5 -w2 " + str(host))
-            if status == 0:
-                break
-            else:
+        status,result = subprocess.getstatusoutput("ping -w2 " + str(host))
+        if status != 0:
+            for cnt in range(0,5):
                 print(c.OKBLUE + '    Trying to wake remote host' + c.ENDC)
                 send_magic_packet(str(hwaddr))
+                status,result = subprocess.getstatusoutput("ping -w10 " + str(host))
+                if status == 0:
+                    break
+
         if status == 0:
             return True
         else:
