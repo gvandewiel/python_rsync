@@ -78,6 +78,7 @@ class Backup():
         
         # Loop over all backup sets
         """Check if server is live"""
+        print(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
         live = self.__ipcheck__(self.source_host, self.hwaddr)
         if self.source_host and self.source_user and live:
             self.send_message(title="Remote backup", subtitle="Pre-run check", message="Check if backup is possible and/or required")
@@ -306,6 +307,7 @@ class Backup():
             if status == 0:
                 break
             else:
+                print(c.OKBLUE + '    Trying to wake remote host' + c.ENDC)
                 send_magic_packet(str(hwaddr))
         return status == 0
 
