@@ -8,8 +8,8 @@ from datetime import datetime
 import configparser
 import hashlib
 import subprocess
-from pprint import pprint
 from wakeonlan import send_magic_packet
+import rotate
 
 class c:
     HEADER = '\e[95m'
@@ -146,8 +146,10 @@ class Backup():
             # Update current directory
             if '--dry-run' in self.extra_arguments:
                 print('\n'+ c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of statefile.' + c.ENDC)
+                rotate.start_rotation(target_dir, dry_run=True, exclude=prev_target)
             else:
                 self.update_state(source_dir, new_id, target_dir)
+                rotate.start_rotation(target_dir, dry_run=True, exclude=prev_target)
 
             new = True
         else:
