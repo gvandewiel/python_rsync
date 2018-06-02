@@ -39,7 +39,7 @@ def get_absolute_path(*args):
 
 
 setup(name='pyrsync',
-      version=get_version('rotate_backups', '__init__.py'),
+      version=get_version('pyrsync', '__init__.py'),
       description="Simple command line interface for rsync backup",
       author="Gijs van de Wiel",
       packages=find_packages(),
