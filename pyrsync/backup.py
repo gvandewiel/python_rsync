@@ -39,7 +39,7 @@ class Backup():
         if settings_file != '':
             self.settings = configparser.ConfigParser()
             self.settings._interpolation = configparser.ExtendedInterpolation()
-            self.settings.read(os.path.join(self.base_dir, settings_file))
+            self.settings.read(os.path.join(settings_file))
 
             # Store extra rsync arguments
             self.extra_arguments = extra_arguments
