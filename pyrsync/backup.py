@@ -9,7 +9,7 @@ import configparser
 import hashlib
 import subprocess
 from wakeonlan import send_magic_packet
-import rotate
+from . import rotate
 
 class c:
     HEADER = '\033[95m'
