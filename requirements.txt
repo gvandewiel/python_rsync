@@ -1,0 +1,2 @@
+wakeonlan >= 1.1.6
+rotate-backups >= 5.2
