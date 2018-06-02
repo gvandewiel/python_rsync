@@ -147,11 +147,11 @@ class Backup():
             # Update current directory
             if '--dry-run' in self.extra_arguments:
                 print('\n'+ c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of statefile.' + c.ENDC)
-                rotate.start_rotation(target_dir, dry_run=True, exclude=prev_target)
+                rotate.start_rotation(path=target_dir, dry_run=True, exclude=prev_target)
             else:
                 self.update_state(source_dir, new_id, target_dir)
                 print('\n'+ c.WARNING + c.BOLD + '  * Starting rotation of backup_target' + c.ENDC)
-                rotate.start_rotation(target_dir, dry_run=True, exclude=prev_target)
+                rotate.start_rotation(path=target_dir, dry_run=False, exclude=prev_target)
 
             new = True
         else:
