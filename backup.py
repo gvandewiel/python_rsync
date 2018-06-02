@@ -150,6 +150,7 @@ class Backup():
                 rotate.start_rotation(target_dir, dry_run=True, exclude=prev_target)
             else:
                 self.update_state(source_dir, new_id, target_dir)
+                print('\n'+ c.WARNING + c.BOLD + '  * Starting rotation of backup_target' + c.ENDC)
                 rotate.start_rotation(target_dir, dry_run=True, exclude=prev_target)
 
             new = True
