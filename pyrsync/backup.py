@@ -79,12 +79,6 @@ class Backup():
         self.errlogfile = open(self.errlog_file, 'a')
 
         # Loop over all backup sets
-        """Check if server is live"""
-        print(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
-        live = self.__ipcheck__(self.source_host, self.hwaddr)
-        if self.source_host and self.source_user and live:
-            self.send_message(title="Remote backup", subtitle="Pre-run check", message="Check if backup is possible and/or required")
-
         for section in settings.sections():
             if section != 'general_settings':
                 print(c.OKBLUE + c.BOLD + '  * Checking backup of' + c.ENDC + '\n\tSource: {}\n\tTarget:{}'.format(settings.get(section, 'source_dir'), settings.get(section, 'target_dir')))
@@ -108,12 +102,6 @@ class Backup():
         source_dir = self.settings.get(section, 'source_dir')
         target_dir = self.settings.get(section, 'target_dir')
 
-        # Check if a SSH connection is possible and the
-        # provided directory is accesible, returns ssh object
-        self.__check_ssh__(host=self.source_host,
-                           username=self.source_user,
-                           remote_dir=source_dir)
-
         # retrieve last backup date
         prev_id = self.get_previous_id(source_dir)
 
@@ -123,40 +111,50 @@ class Backup():
         # Start backup if not performed today
         if new_id != prev_id:
 
-            # Set target for new backup
-            subfolder = self.get_basename(source_dir)
+            """Check if server is live"""
+            print(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
+            # Check if a SSH connection is possible and the
+            # provided directory is accesible, returns ssh object
+            live = self.__check_ssh__(host=self.source_host,
+                               username=self.source_user,
+                               remote_dir=source_dir)
 
-            # Set previous backup target
-            prev_target = self.get_previous_target(target_dir, prev_id, subfolder)
+            if live is True:
 
-            # Set backup source
-            backup_source = self.get_backup_source(source_dir)
+                # Set target for new backup
+                subfolder = self.get_basename(source_dir)
 
-            # Set backup target
-            backup_target = self.get_backup_target(target_dir, new_id, subfolder)
+                # Set previous backup target
+                prev_target = self.get_previous_target(target_dir, prev_id, subfolder)
 
-            # Check modification date of log file (if file exists)
-            log_date = self.get_log_date()
+                # Set backup source
+                backup_source = self.get_backup_source(source_dir)
 
-            self.prep_rsync(target_dir, new_id)
+                # Set backup target
+                backup_target = self.get_backup_target(target_dir, new_id, subfolder)
 
-            self.start_rsync(prev_id,
-                             new_id,
-                             subfolder,
-                             prev_target,
-                             backup_source,
-                             backup_target)
+                # Check modification date of log file (if file exists)
+                log_date = self.get_log_date()
 
-            # Update current directory
-            if '--dry-run' in self.extra_arguments:
-                print('\n'+ c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of statefile.' + c.ENDC)
-                rotate.start_rotation(path=target_dir, dry_run=True, exclude=prev_target)
-            else:
-                self.update_state(source_dir, new_id, target_dir)
-                print('\n'+ c.WARNING + c.BOLD + '  * Starting rotation of backup_target' + c.ENDC)
-                rotate.start_rotation(path=target_dir, dry_run=False, exclude=prev_target)
+                self.prep_rsync(target_dir, new_id)
 
-            new = True
+                self.start_rsync(prev_id,
+                                 new_id,
+                                 subfolder,
+                                 prev_target,
+                                 backup_source,
+                                 backup_target)
+
+                # Update current directory
+                if '--dry-run' in self.extra_arguments:
+                    print('\n'+ c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of statefile.' + c.ENDC)
+                    # rotate.start_rotation(path=target_dir, dry_run=True, exclude=prev_target)
+                else:
+                    self.update_state(source_dir, new_id, target_dir)
+                    print('\n'+ c.WARNING + c.BOLD + '  * Starting rotation of backup_target' + c.ENDC)
+                    rotate.start_rotation(path=target_dir, dry_run=False, exclude=prev_target)
+
+                new = True
         else:
             # No backup performed
             print(c.FAIL + c.BOLD + '  *** Backup is already perfomed today, skipping... ***\n' + c.ENDC)
