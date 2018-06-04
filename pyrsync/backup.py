@@ -35,7 +35,9 @@ class Backup():
         # Base dir of backup script
         # Current directory of backup script
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
-
+        
+        self.live = False
+        
         if settings_file != '':
             self.settings = configparser.ConfigParser()
             self.settings._interpolation = configparser.ExtendedInterpolation()
