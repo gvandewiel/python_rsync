@@ -94,8 +94,8 @@ class Backup():
                 print('\n'+ c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
             else:
                 self.update_symlink(new_id)
-
-        self.send_message(title="Remote backup", subtitle="Finished", message="All backup tasks have finished")
+        if self.live and self.source_host and self.source_user:
+            self.send_message(title="Remote backup", subtitle="Finished", message="All backup tasks have finished")
 
     def backup(self, section):
         """Do the actual backup routine."""
@@ -115,11 +115,11 @@ class Backup():
             print(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
             # Check if a SSH connection is possible and the
             # provided directory is accesible, returns ssh object
-            live = self.__check_ssh__(host=self.source_host,
+            self.live = self.__check_ssh__(host=self.source_host,
                                username=self.source_user,
                                remote_dir=source_dir)
 
-            if live is True:
+            if self.live is True:
 
                 # Set target for new backup
                 subfolder = self.get_basename(source_dir)
