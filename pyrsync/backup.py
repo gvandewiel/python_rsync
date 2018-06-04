@@ -388,13 +388,13 @@ class Backup():
                               universal_newlines=True) as p:
 
             for line in p.stdout:
-                if not line.startswith(('[sender]','hf')):
+                if line.startswith('hf'):
+                    print(c.DIM + line + c.ENDC, end='\r')
+                elif not line.startswith('[sender]'):
                     print(line, end='')
-                else:
-                    print(c.DIM + line, end='')
                 self.logfile.write(line)
             for line in p.stderr:
-                print(line, end='')
+                print(c.FAIL + line + c.ENDC, end='')
                 self.errlogfile.write(line)
 
         if p.returncode != 0:
