@@ -47,16 +47,6 @@ class Backup():
             # Current time
             self.start = datetime.now().strftime('%Y-%m-%d (%H:%M:%S)')
 
-            # The directory containing the identifiers for previous snapshots
-            self.state_dir = os.path.join(self.base_dir, 'rsync-backup')
-
-            # Exclude certain files defined in a exclude list
-            self.rsync_exclude_list = '/volume1/Backup/rsync-exclude-list.txt'
-
-            # Create rsync-backup folder if not exists
-            if not os.path.exists(self.state_dir):
-                os.makedirs(self.state_dir)
-
             self.start_backups()
 
     def start_backups(self):
@@ -72,9 +62,19 @@ class Backup():
 
         self.backup_root = settings.get('general_settings', 'backup_root')
 
-        self.log_file = settings.get('general_settings', 'log_file')
-        self.errlog_file = settings.get('general_settings', 'errlog_file')
-
+        # The directory containing the identifiers for previous snapshots
+        self.state_dir = os.path.join(self.backup_root, 'rsync-backup')
+        # Create rsync-backup folder if not exists
+        if not os.path.exists(self.state_dir):
+            os.makedirs(self.state_dir)
+        
+        # Exclude certain files defined in a exclude list
+        self.rsync_exclude_list = os.path.join(self.backup_root, 'rsync-exclude-list.txt')
+        ## self.rsync_exclude_list = '/volume1/Backup/rsync-exclude-list.txt'
+        
+        self.log_file = os.path.join(self.backup_root, settings.get('general_settings', 'log_file'))
+        self.errlog_file = os.path.join(self.backup_root, settings.get('general_settings', 'errlog_file'))
+        
         self.logfile = open(self.log_file, 'a')
         self.errlogfile = open(self.errlog_file, 'a')
 
@@ -96,7 +96,10 @@ class Backup():
         self.errlogfile.close()
 
         if update:
-            self.update_symlink(new_id)
+            if '--dry-run' in self.extra_arguments:
+                print('\n'+ c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
+            else:
+                self.update_symlink(new_id)
 
         self.send_message(title="Remote backup", subtitle="Finished", message="All backup tasks have finished")
 
