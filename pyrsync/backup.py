@@ -389,9 +389,10 @@ class Backup():
 
             for line in p.stdout:
                 if line.startswith('hf'):
-                    print(c.DIM + line + c.ENDC, end='\r')
+                    print('\t'+line.strip()+'\r', end='')
                 elif not line.startswith('[sender]'):
                     print(line, end='')
+
                 self.logfile.write(line)
             for line in p.stderr:
                 print(c.FAIL + line + c.ENDC, end='')
