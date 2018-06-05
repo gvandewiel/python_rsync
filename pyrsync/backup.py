@@ -388,7 +388,7 @@ class Backup():
             for line in p.stdout:
                 if line.startswith('>'):
                     print(c.OKGREEN + line + c.ENDC, end='')
-                elif not line.startswith(['h','.','[sender]']):
+                elif not line.startswith(('h','.','[sender]')):
                     print(line, end='')
 
                 self.logfile.write(line)
