@@ -334,8 +334,6 @@ class Backup():
             "--devices",
             "--specials",
             "--delete",
-            "--verbose",
-            "--verbose",
             "--human-readable",
             "--delete-excluded",
             "--ignore-existing",
@@ -388,9 +386,9 @@ class Backup():
                               universal_newlines=True) as p:
 
             for line in p.stdout:
-                if line.startswith('hf'):
-                    print('\t'+line.strip()+'\r', end='')
-                elif not line.startswith('[sender]'):
+                if line.startswith('>'):
+                    print(c.OKGREEN + line + c.ENDC, end='')
+                elif not line.startswith(['h','.','[sender]']):
                     print(line, end='')
 
                 self.logfile.write(line)
