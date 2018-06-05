@@ -337,6 +337,8 @@ class Backup():
             "--human-readable",
             "--delete-excluded",
             "--ignore-existing",
+            "--verbose",
+            "--verbose",
             "--stats"
         ]
 
