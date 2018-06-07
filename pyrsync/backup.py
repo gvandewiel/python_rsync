@@ -337,7 +337,6 @@ class Backup():
             "--human-readable",
             "--delete-excluded",
             "--ignore-existing",
-            "--verbose",
             "--stats"
         ]
 
@@ -387,11 +386,13 @@ class Backup():
                               universal_newlines=True) as p:
 
             for line in p.stdout:
+                print(line, end='')
+                '''
                 if line.startswith('>'):
                     print(c.OKGREEN + line + c.ENDC, end='')
                 elif not line.startswith(('h','.','[sender]')):
                     print(line, end='')
-
+                '''
                 self.logfile.write(line)
             for line in p.stderr:
                 print(c.FAIL + line + c.ENDC, end='')
