@@ -9,7 +9,9 @@ import configparser
 import hashlib
 import subprocess
 from wakeonlan import send_magic_packet
+import logging
 from . import rotate
+
 
 class c:
     HEADER = '\033[95m'
@@ -35,9 +37,9 @@ class Backup():
         # Base dir of backup script
         # Current directory of backup script
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
-        
+
         self.live = False
-        
+
         if settings_file != '':
             self.settings = configparser.ConfigParser()
             self.settings._interpolation = configparser.ExtendedInterpolation()
@@ -69,22 +71,13 @@ class Backup():
         # Create rsync-backup folder if not exists
         if not os.path.exists(self.state_dir):
             os.makedirs(self.state_dir)
-        
+
         # Exclude certain files defined in a exclude list
         self.rsync_exclude_list = os.path.join(self.backup_root, 'rsync-exclude-list.txt')
-        ## self.rsync_exclude_list = '/volume1/Backup/rsync-exclude-list.txt'
-        
-        self.log_file = os.path.join(self.backup_root, settings.get('general_settings', 'log_file'))
-        self.errlog_file = os.path.join(self.backup_root, settings.get('general_settings', 'errlog_file'))
-        
-        self.logfile = open(self.log_file, 'a')
-        self.errlogfile = open(self.errlog_file, 'a')
 
         # Loop over all backup sets
         for section in settings.sections():
             if section != 'general_settings':
-                print(c.OKBLUE + c.BOLD + '  * Checking backup of' + c.ENDC + '\n\tSource: {}\n\tTarget:{}'.format(settings.get(section, 'source_dir'), settings.get(section, 'target_dir')))
-                print(c.ENDC)
                 new_id, update = self.backup(section)
 
         # Close log files
@@ -93,7 +86,7 @@ class Backup():
 
         if update:
             if '--dry-run' in self.extra_arguments:
-                print('\n'+ c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
+                self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
             else:
                 self.update_symlink(new_id)
         if self.live and self.source_host and self.source_user:
@@ -110,11 +103,23 @@ class Backup():
         # Set new backup date
         new_id = self.get_new_id()
 
+        log_file = os.path.join(self.backup_root, new_id, 'rsync-backup.log')
+
+        logging.basicConfig(
+            format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
+            handlers=[
+                logging.FileHandler(log_file),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        self.logger = logging.getLogger("")
+        self.logger.info(c.OKBLUE + c.BOLD + '  * Checking backup of' + c.ENDC + '\n\tSource: {}\n\tTarget:{}'.format(self.settings.get(section, 'source_dir'), self.settings.get(section, 'target_dir')) + c.ENDC)
+
         # Start backup if not performed today
         if new_id != prev_id:
 
             """Check if server is live"""
-            print(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
+            self.logger.info(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
             # Check if a SSH connection is possible and the
             # provided directory is accesible, returns ssh object
             self.live = self.__check_ssh__(host=self.source_host,
@@ -149,17 +154,17 @@ class Backup():
 
                 # Update current directory
                 if '--dry-run' in self.extra_arguments:
-                    print('\n'+ c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of statefile.' + c.ENDC)
+                    self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of statefile.' + c.ENDC)
                     # rotate.start_rotation(path=target_dir, dry_run=True, exclude=prev_target)
                 else:
                     self.update_state(source_dir, new_id, target_dir)
-                    print('\n'+ c.WARNING + c.BOLD + '  * Starting rotation of backup_target' + c.ENDC)
+                    self.logger.info(c.WARNING + c.BOLD + '  * Starting rotation of backup_target' + c.ENDC)
                     rotate.start_rotation(path=target_dir, dry_run=False, exclude=prev_target)
 
                 new = True
         else:
             # No backup performed
-            print(c.FAIL + c.BOLD + '  *** Backup is already perfomed today, skipping... ***\n' + c.ENDC)
+            self.logger.info(c.FAIL + c.BOLD + '  *** Backup is already perfomed today, skipping... ***\n' + c.ENDC)
             new = False
 
         return new_id, new
@@ -183,23 +188,22 @@ class Backup():
                 os.mkdir(new_dir)
 
     def update_symlink(self, new_id):
-        print(c.OKBLUE + c.BOLD + '  * Creating symlink "current" directory' + c.ENDC)
+        self.logger.info(c.OKBLUE + c.BOLD + '  * Creating symlink "current" directory' + c.ENDC)
         src = os.path.join(self.backup_root, new_id)
         dst = os.path.join(self.backup_root, 'current')
         try:
             os.unlink(dst)
             os.symlink(src, dst)
-            print(c.OKGREEN + c.BOLD + "    - Symlink created" + c.ENDC)
+            self.logger.info(c.OKGREEN + c.BOLD + "    - Symlink created" + c.ENDC)
         except:
             os.symlink(src, dst)
-            print(c.OKGREEN + c.BOLD + "    - Symlink created" + c.ENDC)
+            self.logger.info(c.OKGREEN + c.BOLD + "    - Symlink created" + c.ENDC)
 
     def update_state(self, source_dir, new_id, target_dir):
         """Retrieve last backup date for source dir."""
 
         source_hash = self.__create_hash__(source_dir)
-        print('\n'+c.OKBLUE + c.BOLD + '  * Updating statefile with hash "{}" to {}'.format(source_hash, new_id))
-        print(c.ENDC)
+        self.logger.info(c.OKBLUE + c.BOLD + '  * Updating statefile with hash "{}" to {}'.format(source_hash, new_id) + c.ENDC)
 
         state_file = os.path.join(self.state_dir, str(source_hash))
         with open(state_file, 'w') as f:
@@ -207,19 +211,19 @@ class Backup():
 
     def get_previous_id(self, source_dir):
         """Retrieve last backup date for source dir."""
-        print(c.OKBLUE + c.BOLD + '  * Checking for last backup date' + c.ENDC)
+        self.logger.info(c.OKBLUE + c.BOLD + '  * Checking for last backup date' + c.ENDC)
         source_hash = self.__create_hash__(source_dir)
-        print('    - Source hash = {}'.format(source_hash))
+        self.logger.info('    - Source hash = {}'.format(source_hash))
 
         state_file = os.path.join(self.state_dir, str(source_hash))
         if os.path.isfile(state_file):
             with open(state_file, 'r') as f:
                 line = f.readline()
-                print('    - {}'.format(line))
+                self.logger.info('    - {}'.format(line))
                 return line
         else:
-            print(c.WARNING + '    - No statefile found' + c.ENDC)
-            print(c.FAIL + '    - No link-dest available' + c.ENDC)
+            self.logger.info(c.WARNING + '    - No statefile found' + c.ENDC)
+            self.logger.info(c.FAIL + '    - No link-dest available' + c.ENDC)
             return ''
 
     def get_new_id(self):
@@ -278,30 +282,28 @@ class Backup():
         """Check if server is live"""
         live = self.__ipcheck__(host, self.hwaddr)
         """Check is ssh connection can be made to source."""
-        print(c.OKBLUE + c.BOLD + '  * Checking SSH connection to remote source' + c.ENDC)
+        self.logger.info(c.OKBLUE + c.BOLD + '  * Checking SSH connection to remote source' + c.ENDC)
         if host and username and remote_dir and live:
             ssh_server = '{}@{}'.format(username, host)
             ssh_cmd = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', ssh_server, 'echo ok']
 
             ssh = subprocess.check_output(ssh_cmd).decode('utf-8').strip()
             if ssh == 'ok':
-                print(c.OKGREEN + '    - SSH connection established' + c.ENDC)
+                self.logger.info(c.OKGREEN + '    - SSH connection established' + c.ENDC)
                 ssh_cmd = ['ssh', ssh_server, '[ ! -d \'{}\' ]'.format(remote_dir)]
                 ssh = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE)
                 ssh.communicate()[0]
                 if ssh.returncode == 1:
-                    print(c.OKGREEN + '    - Directory "{}" exists'.format(remote_dir))
-                    print(c.ENDC)
+                    self.logger.info(c.OKGREEN + '    - Directory "{}" exists'.format(remote_dir) + c.ENDC)
                     return True
                 else:
-                    print(c.FAIL + '    - Directory "{}" does not exists'.format(remote_dir))
-                    print(c.ENDC)
+                    self.logger.info(c.FAIL + '    - Directory "{}" does not exists'.format(remote_dir) + c.ENDC)
                     return False
             else:
-                print(c.FAIL + '    - SSH connection could not be established' + c.ENDC)
+                self.logger.info(c.FAIL + '    - SSH connection could not be established' + c.ENDC)
                 return False
         else:
-            print(c.FAIL + '    - No host, username or remote_dir provided' + c.ENDC)
+            self.logger.info(c.FAIL + '    - No host, username or remote_dir provided' + c.ENDC)
             return False
 
     def __ipcheck__(self, host, hwaddr):
@@ -312,7 +314,7 @@ class Backup():
         status,result = subprocess.getstatusoutput("ping -w2 " + str(host))
         if status != 0:
             for cnt in range(0,5):
-                print(c.FAIL + '    - Trying to wake remote host' + c.ENDC)
+                self.logger.info(c.FAIL + '    - Trying to wake remote host' + c.ENDC)
                 send_magic_packet(str(hwaddr))
                 status,result = subprocess.getstatusoutput("ping -w10 " + str(host))
                 if status == 0:
@@ -321,7 +323,7 @@ class Backup():
         if status == 0:
             return True
         else:
-            print(c.FAIL + '    - Server seems down' + c.ENDC)
+            self.logger.info(c.FAIL + '    - Server seems down' + c.ENDC)
             return False
 
     def start_rsync(self, prev_id, new_id, subfolder, prev_target, backup_source, backup_target):
@@ -355,24 +357,17 @@ class Backup():
         # Add backup target
         arguments.append(backup_target)
 
-        print(c.HEADER + c.BOLD + '  * Backup configuration:' + c.ENDC)
-        print('    - Source Directory   : {}'.format(backup_source))
-        print('    - Target Directory   : {}'.format(backup_target))
-        print('    - Previous Directory : {}'.format(prev_target))
-        print('    - Previous snapshot  : {}'.format(prev_id))
-        print('    - New snapshot       : {}'.format(new_id))
-        print('    - Snapshot subfolder : {}'.format(subfolder))
-        print('    - Extra rsync options: {}'.format(self.extra_arguments))
-        print('')
-        print(c.HEADER + c.BOLD + '  * Running rsync with:' + c.ENDC)
+        self.logger.info(c.HEADER + c.BOLD + '  * Backup configuration:' + c.ENDC)
+        self.logger.info('    - Source Directory   : {}'.format(backup_source))
+        self.logger.info('    - Target Directory   : {}'.format(backup_target))
+        self.logger.info('    - Previous Directory : {}'.format(prev_target))
+        self.logger.info('    - Previous snapshot  : {}'.format(prev_id))
+        self.logger.info('    - New snapshot       : {}'.format(new_id))
+        self.logger.info('    - Snapshot subfolder : {}'.format(subfolder))
+        self.logger.info('    - Extra rsync options: {}'.format(self.extra_arguments))
+        self.logger.info(c.HEADER + c.BOLD + '  * Running rsync with:' + c.ENDC)
         for arg in arguments[1:]:
-        	print('    {}'.format(arg))
-
-        self.logfile.seek(0, 0)
-        self.logfile.truncate
-
-        self.errlogfile.seek(0, 0)
-        self.errlogfile.truncate
+        	self.logger.info('    {}'.format(arg))
 
         # Start the actual backup
         # Send message to the osx notifaction centre
@@ -386,17 +381,9 @@ class Backup():
                               universal_newlines=True) as p:
 
             for line in p.stdout:
-                print(line, end='')
-                '''
-                if line.startswith('>'):
-                    print(c.OKGREEN + line + c.ENDC, end='')
-                elif not line.startswith(('h','.','[sender]')):
-                    print(line, end='')
-                '''
-                self.logfile.write(line)
+                self.logger.info(line)
             for line in p.stderr:
-                print(c.FAIL + line + c.ENDC, end='')
-                self.errlogfile.write(line)
+                self.logger.info(c.FAIL + line + c.ENDC)
 
         if p.returncode != 0:
             raise subprocess.CalledProcessError(p.returncode, p.args)
