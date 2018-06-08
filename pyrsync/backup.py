@@ -80,13 +80,9 @@ class Backup():
             if section != 'general_settings':
                 new_id, update = self.backup(section)
 
-        # Close log files
-        self.logfile.close()
-        self.errlogfile.close()
-
         if update:
             if '--dry-run' in self.extra_arguments:
-                self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
+                print(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
             else:
                 self.update_symlink(new_id)
         if self.live and self.source_host and self.source_user:
