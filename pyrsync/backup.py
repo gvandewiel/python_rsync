@@ -93,9 +93,6 @@ class Backup():
         source_dir = self.settings.get(section, 'source_dir')
         target_dir = self.settings.get(section, 'target_dir')
 
-        # retrieve last backup date
-        prev_id = self.get_previous_id(source_dir)
-
         # Set new backup date
         new_id = self.get_new_id()
 
@@ -109,6 +106,10 @@ class Backup():
             ]
         )
         self.logger = logging.getLogger("")
+
+        # retrieve last backup date
+        prev_id = self.get_previous_id(source_dir)
+
         self.logger.info(c.OKBLUE + c.BOLD + '  * Checking backup of' + c.ENDC + '\n\tSource: {}\n\tTarget:{}'.format(self.settings.get(section, 'source_dir'), self.settings.get(section, 'target_dir')) + c.ENDC)
 
         # Start backup if not performed today
