@@ -141,9 +141,6 @@ class Backup():
                 # Set backup target
                 backup_target = self.get_backup_target(target_dir, new_id, subfolder)
 
-                # Check modification date of log file (if file exists)
-                log_date = self.get_log_date()
-
                 self.start_rsync(prev_id,
                                  new_id,
                                  subfolder,
