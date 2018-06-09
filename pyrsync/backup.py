@@ -227,7 +227,7 @@ class Backup():
         """Generte new id based on current date."""
         new_id = datetime.now().strftime('%Y-%m-%d')
 
-        if not self.dry_run:
+        if self.dry_run is False:
             self.prep_rsync(target_dir, new_id)
 
         return new_id
