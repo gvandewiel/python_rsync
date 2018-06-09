@@ -47,6 +47,10 @@ class Backup():
 
             # Store extra rsync arguments
             self.extra_arguments = extra_arguments
+            if '--dry-run' in self.extra_arguments:
+                self.dry_run = True
+            else:
+                self.dry_run = False
 
             # Current time
             self.start = datetime.now().strftime('%Y-%m-%d (%H:%M:%S)')
@@ -81,7 +85,7 @@ class Backup():
                 new_id, update = self.backup(section)
 
         if update:
-            if '--dry-run' in self.extra_arguments:
+            if self.dry_run:
                 print(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
             else:
                 self.update_symlink(new_id)
@@ -94,7 +98,7 @@ class Backup():
         target_dir = self.settings.get(section, 'target_dir')
 
         # Set new backup date
-        new_id = self.get_new_id()
+        new_id = self.get_new_id(target_dir)
 
         log_file = os.path.join(self.backup_root, new_id, 'rsync-backup.log')
 
@@ -139,8 +143,6 @@ class Backup():
 
                 # Check modification date of log file (if file exists)
                 log_date = self.get_log_date()
-
-                self.prep_rsync(target_dir, new_id)
 
                 self.start_rsync(prev_id,
                                  new_id,
@@ -223,9 +225,14 @@ class Backup():
             self.logger.info(c.FAIL + '    - No link-dest available' + c.ENDC)
             return ''
 
-    def get_new_id(self):
+    def get_new_id(self, target_dir):
         """Generte new id based on current date."""
-        return datetime.now().strftime('%Y-%m-%d')
+        new_id = datetime.now().strftime('%Y-%m-%d')
+
+        if not self.dry_run:
+            self.prep_rsync(target_dir, new_id)
+
+        return new_id
 
     def __create_hash__(self, source_dir):
         """Create SHA1 hash from source_dir name.
