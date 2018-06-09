@@ -115,8 +115,9 @@ class Backup():
         # retrieve last backup date
         prev_id = self.get_previous_id(source_dir)
 
-        self.logger.info(c.OKBLUE + c.BOLD + '  * Checking backup of' + c.ENDC + '\n\tSource: {}\n\tTarget:{}'.format(self.settings.get(section, 'source_dir'), self.settings.get(section, 'target_dir')) + c.ENDC)
-
+        self.logger.info(c.OKBLUE + c.BOLD + '  * Checking backup of' + c.ENDC)
+        self.logger.info('\tSource:\t{}'.format(self.settings.get(section, 'source_dir')) + c.ENDC)
+        self.logger.info('\tTarget:\t{}'.format(self.settings.get(section, 'target_dir')) + c.ENDC)
         # Start backup if not performed today
         if new_id != prev_id:
 
@@ -216,7 +217,7 @@ class Backup():
         if os.path.isfile(state_file):
             with open(state_file, 'r') as f:
                 line = f.readline()
-                self.logger.info('    - {}'.format(line))
+                self.logger.info('    - {}'.format(line.rstrip()))
                 return line
         else:
             self.logger.info(c.WARNING + '    - No statefile found' + c.ENDC)
