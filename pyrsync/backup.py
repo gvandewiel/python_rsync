@@ -381,7 +381,7 @@ class Backup():
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE,
                               bufsize=1,
-                              universal_newlines=True) as p:
+                              universal_newlines=False) as p:
 
             for line in p.stdout:
                 self.logger.info(line)
