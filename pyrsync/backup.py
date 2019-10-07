@@ -9,6 +9,8 @@ import configparser
 import hashlib
 import subprocess
 from wakeonlan import send_magic_packet
+from multiprocessing import Pool
+
 import logging
 from . import rotate
 
@@ -80,15 +82,25 @@ class Backup():
         self.rsync_exclude_list = os.path.join(self.backup_root, 'rsync-exclude-list.txt')
 
         # Loop over all backup sets
+        pool_args = []
         for section in settings.sections():
             if section != 'general_settings':
-                new_id, update = self.backup(section)
+                pool_args.append(section)
+                #new_id, update = self.backup(section)
+        
+        print(c.WARNING + c.BOLD + 'Starting Pool of workers' + c.ENDC)
+        with Pool(2) as p:
+            answers = p.map(self.backup, pool_args)
 
-        if update:
-            if self.dry_run:
-                print(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
-            else:
-                self.update_symlink(new_id)
+        for ans in answers:
+            if ans[1]:
+            #if update:
+                if self.dry_run:
+                    print(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
+                else:
+                    #self.update_symlink(new_id)
+                    self.update_symlink(ans[0])
+
         if self.live and self.source_host and self.source_user:
             self.send_message(title="Remote backup", subtitle="Finished", message="All backup tasks have finished")
 
