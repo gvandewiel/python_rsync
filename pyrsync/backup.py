@@ -54,6 +54,11 @@ class Backup():
             else:
                 self.dry_run = False
 
+            if '--force' in self.extra_arguments:
+                self.force = True
+            else:
+                self.force = False
+
             # Current time
             self.start = datetime.now().strftime('%Y-%m-%d (%H:%M:%S)')
 
@@ -131,7 +136,7 @@ class Backup():
         self.logger.info('\tSource:\t{}'.format(self.settings.get(section, 'source_dir')) + c.ENDC)
         self.logger.info('\tTarget:\t{}'.format(self.settings.get(section, 'target_dir')) + c.ENDC)
         # Start backup if not performed today
-        if new_id != prev_id:
+        if (new_id != prev_id) or self.force:
 
             """Check if server is live"""
             self.logger.info(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
@@ -398,7 +403,7 @@ class Backup():
         c_format = logging.Formatter(color + '%(message)s')
         c_handler.setFormatter(c_format)
         rsynclogger.addHandler(c_handler)
-        
+
         with subprocess.Popen(arguments,
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE,
