@@ -389,6 +389,16 @@ class Backup():
         self.send_message(title="Remote backup", subtitle=subfolder, message="Starting backup...")
 
         # Start backup...
+        import colorama
+        import random
+        colors = list(vars(colorama.Fore).values())
+        color = random.choice(colors)
+        rsynclogger = logging.getLogger('{}'.format(subfolder))
+        c_handler = logging.StreamHandler()
+        c_format = logging.Formatter(color + '%(message)s')
+        c_handler.setFormatter(c_format)
+        rsynclogger.addHandler(c_handler)
+        
         with subprocess.Popen(arguments,
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE,
@@ -396,9 +406,9 @@ class Backup():
                               universal_newlines=False) as p:
 
             for line in p.stdout:
-                self.logger.info(line)
+                rsynclogger.info(line)
             for line in p.stderr:
-                self.logger.info(c.FAIL + line + c.ENDC)
+                rsynclogger.info(c.FAIL + line + c.ENDC)
 
         if p.returncode != 0:
             raise subprocess.CalledProcessError(p.returncode, p.args)
