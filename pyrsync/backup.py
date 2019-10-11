@@ -10,8 +10,14 @@ import hashlib
 import subprocess
 from wakeonlan import send_magic_packet
 import logging
-from . import rotate
+import rotate
 
+logging.basicConfig(
+    format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
+    level=logging.INFO,
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger("")
 
 class c:
     HEADER = '\033[95m'
@@ -42,7 +48,8 @@ class BackupLocation():
         self.state_dir = os.path.join(self.backup_root, 'rsync-backup')
         # Create rsync-backup folder if not exists
         if not os.path.exists(self.state_dir):
-            os.makedirs(self.state_dir)
+            pass
+            # os.makedirs(self.state_dir)
 
 class BackupJob():
     def __init__(self, location, settings, *rsync_args):
@@ -52,7 +59,6 @@ class BackupJob():
         # Retrieve settings
         self.source_dir = settings['source_dir']
         self.target_dir = settings['target_dir']
-
         # Set new backup date
         self.new_id = self.get_new_id(self.target_dir)
 
@@ -169,7 +175,7 @@ class Backup():
         logging.basicConfig(
             format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
             level=logging.INFO,
-            handlers=[logging.FileHandler(job.log_file), logging.StreamHandler(sys.stdout)]
+            handlers=[logging.StreamHandler(sys.stdout)]
         )
         self.logger = logging.getLogger("")
 
@@ -188,28 +194,33 @@ class Backup():
 
             self.jobs = list()
             for job in parser.sections():
-                self.jobs.append(BackupJob(self.gs, dict(job), extra_arguments))
+                if job != 'general_settings':
+                    self.jobs.append(BackupJob(self.gs, dict(parser[job]), extra_arguments))
 
             # Current time
             #self.start = datetime.now().strftime('%Y-%m-%d (%H:%M:%S)')
-
             self.__call__()
 
     def __call__(self):
         # Loop over all backup sets
         for job in self.jobs:
-            new_id, update = self.backup(job)
+            new_id, update = self.execute_backup(job)
 
-            if update:
-                if job.dry_run:
-                    print(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
-                else:
-                    self.update_symlink(new_id)
+            if new_id:
+                self.logger.info(c.OKGREEN + c.BOLD + '  * Backup of "{}" is performed'.format(job.source_dir) + c.ENDC)
+                if update:
+                    if job.dry_run:
+                        self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
+                    else:
+                        self.logger.info(c.OKBLUE + c.BOLD + '  * Update symlink of link-dest' + c.ENDC)
+                        self.update_symlink(new_id)
+            else:
+                self.logger.info(c.WARNING + c.BOLD + '  * No Backup of "{}" is performed'.format(job.source_dir) + c.ENDC)
 
         if self.live and self.gs.source_host and self.gs.source_user:
             self.send_message(title="Remote backup", subtitle="Finished", message="All backup tasks have finished")
 
-    def backup(self, job):
+    def execute_backup(self, job):
         """Do the actual backup routine."""
         self.logger.info(c.OKBLUE + c.BOLD + '  * Checking backup of' + c.ENDC)
         self.logger.info('\tSource:\t{}'.format(job.source_dir) + c.ENDC)
@@ -217,17 +228,11 @@ class Backup():
         
         # Start backup if not performed today
         if job.new_id != job.prev_id:
-
             """Check if server is live"""
             self.logger.info(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
             
-            # Check if a SSH connection is possible and the
-            # provided directory is accesible, returns ssh object
-            live = self.__check_ssh__(host=self.gs.source_host,
-                                           username=self.gs.source_user,
-                                           remote_dir=job.source_dir)
-
-            if live:
+            if self.__RemoteServerCheck__(job):
+                logger.info('Server is live...')
                 self.rsync(job)
 
                 # Update current directory
@@ -240,9 +245,14 @@ class Backup():
                 
                 new_id = job.new_id
                 update = True
+            else:
+                self.logger.info(c.FAIL + c.BOLD + '  * RemoteServerCheck failed, skipping...\n' + c.ENDC)
+                new_id = False
+                update = False
         else:
             # No backup performed
-            self.logger.info(c.FAIL + c.BOLD + '  *** Backup is already perfomed today, skipping... ***\n' + c.ENDC)
+            self.logger.info(c.FAIL + c.BOLD + '  * Backup is already perfomed today, skipping...\n' + c.ENDC)
+            new_id = False
             update = False
 
         return new_id, update
@@ -287,55 +297,72 @@ class Backup():
         with open(state_file, 'w') as f:
             f.write(new_id)
 
-    def __check_ssh__(self, host='', username='', remote_dir=''):
+    #def __check_ssh__(self, host='', username='', remote_dir=''):
+    def __RemoteServerCheck__(self, job):
         """Check if server is live"""
-        live = self.__ipcheck__(host, self.hwaddr)
-
-        """Check is ssh connection can be made to source."""
-        self.logger.info(c.OKBLUE + c.BOLD + '  * Checking SSH connection to remote source' + c.ENDC)
-
-        if host and username and remote_dir and live:
-            ssh_server = '{}@{}'.format(username, host)
-            ssh_cmd = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', ssh_server, 'echo ok']
-
-            ssh = subprocess.check_output(ssh_cmd).decode('utf-8').strip()
-            if ssh == 'ok':
-                self.logger.info(c.OKGREEN + '    - SSH connection established' + c.ENDC)
-                ssh_cmd = ['ssh', ssh_server, '[ ! -d \'{}\' ]'.format(remote_dir)]
-                ssh = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE)
-                ssh.communicate()[0]
-                if ssh.returncode == 1:
-                    self.logger.info(c.OKGREEN + '    - Directory "{}" exists'.format(remote_dir) + c.ENDC)
-                    return True
-                else:
-                    self.logger.info(c.FAIL + '    - Directory "{}" does not exists'.format(remote_dir) + c.ENDC)
-                    return False
+        def __AvailabilityTest__(host, hwaddr):
+            """Check server status.
+            Checks if server is available by sending a ping.
+            If the response is false, upto 5 WOL commands will be send.
+            """
+            status, result = subprocess.getstatusoutput("ping -W2 -c1 " + str(host))
+            if status != 0:
+                for cnt in range(0,5):
+                    self.logger.info(c.FAIL + '    - Trying to wake remote host' + c.ENDC)
+                    send_magic_packet(str(hwaddr))
+                    status,result = subprocess.getstatusoutput("ping -W10 c-1 " + str(host))
+                    print(status)
+                    print(result)
+                    if status == 0:
+                        break
+            elif status == 0:
+                self.logger.info(c.OKGREEN + c.BOLD + '      * Server is available...' + c.ENDC)
+                return True
             else:
-                self.logger.info(c.FAIL + '    - SSH connection could not be established' + c.ENDC)
+                self.logger.info(c.FAIL + '      - Server seems down' + c.ENDC)
                 return False
-        else:
-            self.logger.info(c.FAIL + '    - No host, username or remote_dir provided' + c.ENDC)
-            return False
 
-    def __ipcheck__(self, host, hwaddr):
-        """Check server status.
-        Checks if server is available by sending a ping.
-        If the response is false, upto 5 WOL commands will be send.
-        """
-        status,result = subprocess.getstatusoutput("ping -w2 " + str(host))
-        if status != 0:
-            for cnt in range(0,5):
-                self.logger.info(c.FAIL + '    - Trying to wake remote host' + c.ENDC)
-                send_magic_packet(str(hwaddr))
-                status,result = subprocess.getstatusoutput("ping -w10 " + str(host))
-                if status == 0:
-                    break
+        def __AccessTest__(host, username):
+            ssh_server = '{}@{}'.format(username, host)
+            ssh_cmd = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', ssh_server, 'echo True']
+            test = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE).communicate()[0]
+            if test:
+                self.logger.info(c.OKGREEN + c.BOLD + '      - SSH connection established' + c.ENDC)
+                return True
+            else:
+                self.logger.info(c.FAIL + '      - SSH connection could not be established' + c.ENDC)
+                return False
 
-        if status == 0:
-            return True
-        else:
-            self.logger.info(c.FAIL + '    - Server seems down' + c.ENDC)
-            return False
+        def __RemoteDirTest__(host, username, remote_dir):
+            # Set default return value
+            _ret = False
+            
+            # Check remote dir
+            ssh_server = '{}@{}'.format(username, host)
+            ssh_cmd = ['ssh', ssh_server, '[ ! -d \'{}\' ]'.format(remote_dir)]
+            ssh = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE)
+            ssh.communicate()[0]
+            _ret = ssh.returncode == 1
+            if _ret:
+                self.logger.info(c.OKGREEN + '    - Directory "{}" exists'.format(remote_dir) + c.ENDC)
+            else:
+                self.logger.info(c.FAIL + '    - Directory "{}" does not exists'.format(remote_dir) + c.ENDC)
+            return _ret
+
+        # Retrieve required values from job object
+        host = job.loc.source_host
+        username = job.loc.source_user
+        hwaddr = job.loc.hwaddr
+        remote_dir = job.source_dir
+
+        # Set default return value
+        _ret = False
+
+        if __AvailabilityTest__(host=host, hwaddr=hwaddr):
+            if __AccessTest__(host=host, username=username):
+                if __RemoteDirTest__(host=host, username=username, remote_dir=remote_dir):
+                    _ret = True
+        return _ret
 
     #def rsync(self, prev_id, new_id, subfolder, prev_target, backup_source, backup_target):
     def rsync(self, job):
