@@ -9,8 +9,6 @@ import configparser
 import hashlib
 import subprocess
 from wakeonlan import send_magic_packet
-from multiprocessing import Pool
-
 import logging
 from . import rotate
 
@@ -26,6 +24,138 @@ class c:
     UNDERLINE = '\033[4m'
     DIM = '\033[2m'
 
+class BackupLocation():
+    def __init__(self, settings):
+        # Source location and user settings (for SSH access)
+        self.source_user = settings['source_user']
+        self.source_host = settings['source_host']
+        
+        # Source hardware adress for WOL
+        self.hwaddr = settings['hwaddr']
+        
+        # Target location and user settings (for SSH access)
+        self.target_user = settings['target_user']
+        self.target_host = settings['target_host']
+        self.backup_root = settings['backup_root']
+
+        # The directory containing the identifiers for previous snapshots
+        self.state_dir = os.path.join(self.backup_root, 'rsync-backup')
+        # Create rsync-backup folder if not exists
+        if not os.path.exists(self.state_dir):
+            os.makedirs(self.state_dir)
+
+class BackupJob():
+    def __init__(self, location, settings, *rsync_args):
+        # Make BackupLocation object available
+        self.loc = location
+
+        # Retrieve settings
+        self.source_dir = settings['source_dir']
+        self.target_dir = settings['target_dir']
+
+        # Set new backup date
+        self.new_id = self.get_new_id(self.target_dir)
+
+        # retrieve last backup date
+        self.prev_id = self.get_previous_id(self.source_dir)
+
+        # Set target for new backup
+        self.subfolder = self.get_basename(self.source_dir)
+        
+        # Set previous backup target
+        self.prev_target = self.get_previous_target(self.target_dir, self.prev_id, self.subfolder)
+
+        # Set backup source
+        self.backup_source = self.get_backup_source(self.source_dir)
+
+        # Set backup target
+        self.backup_target = self.get_backup_target(self.target_dir, self.new_id, self.subfolder)
+
+        self.log_file = os.path.join(self.loc.backup_root, self.new_id, 'rsync-backup.log')
+
+        if '--dry-run' in rsync_args:
+            self.dry_run = True
+        else:
+            self.dry_run = False
+
+        if '--force' in  rsync_args:
+            self.force = True
+            rsync_args.remove('--force')
+        else:
+            self.foce = False
+            
+        # Store extra rsync arguments
+        self.rsync_args = rsync_args
+        
+        # Add rsync exclude list
+        self.rsync_exclude_list = os.path.join(self.loc.backup_root, 'rsync-exclude-list.txt')
+
+
+    def __create_hash__(self, source_dir):
+        """Create SHA1 hash from source_dir name.
+
+        Used to store last backup date for that specific source dir.
+        """
+        return hashlib.sha1(source_dir.encode('UTF-8')).hexdigest()
+
+    def get_new_id(self, target_dir):
+        """Generte new id based on current date."""
+        return datetime.now().strftime('%Y-%m-%d')
+
+    def get_previous_id(self, source_dir):
+        """Calculate SHA1 hash of source_dir"""
+        source_hash = self.__create_hash__(source_dir)
+        #self.logger.info('    - Source hash = {}'.format(source_hash))
+
+        # Path the state file of backup
+        sf = os.path.join(self.loc.state_dir, str(source_hash))
+        
+        # Try to retrieve previous id from state file
+        if os.path.isfile(sf):
+            with open(sf, 'r') as f:
+                line = f.readline()
+                #self.logger.info('    - {}'.format(line.rstrip()))
+        else:
+            #self.logger.info(c.WARNING + '    - No statefile found' + c.ENDC)
+            #self.logger.info(c.FAIL + '    - No link-dest available' + c.ENDC)
+            line = ''
+        return line
+
+    def get_basename(self, source_dir):
+        """Returns the basename of the source directory."""
+        return os.path.basename(os.path.normpath(source_dir))
+
+    def get_previous_target(self, target_dir, prev_id, subfolder):
+        """Determine the previous backup target (to be used as link dest)."""
+        return os.path.join(target_dir, prev_id, subfolder)
+
+    def get_backup_source(self, source_dir):
+        """
+        Return backup source considering a possible remote host
+        
+        Args:
+            source_dir (str): local path to source dir
+        
+        Returns:
+            [type]: path to source dir
+        """
+        
+        if self.loc.source_user and self.loc.source_host:
+            backup_source = '{}@{}:{}'.format(self.loc.source_user, self.loc.source_host, source_dir)
+        else:
+            backup_source = source_dir
+        return backup_source
+
+    def get_backup_target(self, target_dir, new_id, subfolder):
+        # if target_user and target_host are not blank,
+        # set backup source to remote location
+        backup_path = os.path.join(target_dir, new_id, subfolder)
+
+        if self.loc.target_user and self.loc.target_host:
+            backup_target = '{}@{}:{}'.format(self.loc.target_user, self.loc.target_host, backup_path)
+        else:
+            backup_target = backup_path
+        return backup_target
 
 class Backup():
     """Backup Script.
@@ -36,153 +166,86 @@ class Backup():
 
     def __init__(self, settings_file='', extra_arguments=[]):
         """Backup class."""
-        # Base dir of backup script
+        logging.basicConfig(
+            format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
+            level=logging.INFO,
+            handlers=[logging.FileHandler(job.log_file), logging.StreamHandler(sys.stdout)]
+        )
+        self.logger = logging.getLogger("")
+
         # Current directory of backup script
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
 
         self.live = False
 
         if settings_file != '':
-            self.settings = configparser.ConfigParser()
-            self.settings._interpolation = configparser.ExtendedInterpolation()
-            self.settings.read(os.path.join(settings_file))
+            parser = configparser.ConfigParser()
+            parser._interpolation = configparser.ExtendedInterpolation()
+            parser.read(os.path.join(settings_file))
 
-            # Store extra rsync arguments
-            self.extra_arguments = extra_arguments
-            if '--dry-run' in self.extra_arguments:
-                self.dry_run = True
-            else:
-                self.dry_run = False
+            # Read general settings from config file
+            self.gs = BackupLocation(dict(parser['general_settings']))
 
-            if '--force' in self.extra_arguments:
-                self.force = True
-            else:
-                self.force = False
+            self.jobs = list()
+            for job in parser.sections():
+                self.jobs.append(BackupJob(self.gs, dict(job), extra_arguments))
 
             # Current time
-            self.start = datetime.now().strftime('%Y-%m-%d (%H:%M:%S)')
+            #self.start = datetime.now().strftime('%Y-%m-%d (%H:%M:%S)')
 
-            self.start_backups()
+            self.__call__()
 
-    def start_backups(self):
-        settings = self.settings
-
-        # Get general backup settings (SSH settings, log files)
-        self.source_user = settings.get('general_settings', 'source_user')
-        self.source_host = settings.get('general_settings', 'source_host')
-        self.hwaddr = settings.get('general_settings', 'hwaddr')
-
-        self.target_user = settings.get('general_settings', 'target_user')
-        self.target_host = settings.get('general_settings', 'target_host')
-
-        self.backup_root = settings.get('general_settings', 'backup_root')
-
-        # The directory containing the identifiers for previous snapshots
-        self.state_dir = os.path.join(self.backup_root, 'rsync-backup')
-        # Create rsync-backup folder if not exists
-        if not os.path.exists(self.state_dir):
-            os.makedirs(self.state_dir)
-
-        # Exclude certain files defined in a exclude list
-        self.rsync_exclude_list = os.path.join(self.backup_root, 'rsync-exclude-list.txt')
-
+    def __call__(self):
         # Loop over all backup sets
-        pool_args = []
-        for section in settings.sections():
-            if section != 'general_settings':
-                pool_args.append(section)
-                #new_id, update = self.backup(section)
-        
-        print(c.WARNING + c.BOLD + 'Starting Pool of workers' + c.ENDC)
-        with Pool(2) as p:
-            answers = p.map(self.backup, pool_args)
+        for job in self.jobs:
+            new_id, update = self.backup(job)
 
-        for ans in answers:
-            if ans[1]:
-            #if update:
-                if self.dry_run:
+            if update:
+                if job.dry_run:
                     print(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
                 else:
-                    #self.update_symlink(new_id)
-                    self.update_symlink(ans[0])
+                    self.update_symlink(new_id)
 
-        if self.live and self.source_host and self.source_user:
+        if self.live and self.gs.source_host and self.gs.source_user:
             self.send_message(title="Remote backup", subtitle="Finished", message="All backup tasks have finished")
 
-    def backup(self, section):
+    def backup(self, job):
         """Do the actual backup routine."""
-        source_dir = self.settings.get(section, 'source_dir')
-        target_dir = self.settings.get(section, 'target_dir')
-
-        # Set new backup date
-        new_id = self.get_new_id(target_dir)
-
-        log_file = os.path.join(self.backup_root, new_id, 'rsync-backup.log')
-
-        logging.basicConfig(
-            format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
-            level=logging.INFO,
-            handlers=[
-                logging.FileHandler(log_file),
-                logging.StreamHandler(sys.stdout)
-            ]
-        )
-        self.logger = logging.getLogger("")
-
-        # retrieve last backup date
-        prev_id = self.get_previous_id(source_dir)
-
         self.logger.info(c.OKBLUE + c.BOLD + '  * Checking backup of' + c.ENDC)
-        self.logger.info('\tSource:\t{}'.format(self.settings.get(section, 'source_dir')) + c.ENDC)
-        self.logger.info('\tTarget:\t{}'.format(self.settings.get(section, 'target_dir')) + c.ENDC)
+        self.logger.info('\tSource:\t{}'.format(job.source_dir) + c.ENDC)
+        self.logger.info('\tTarget:\t{}'.format(job.target_dir) + c.ENDC)
+        
         # Start backup if not performed today
-        if (new_id != prev_id) or self.force:
+        if job.new_id != job.prev_id:
 
             """Check if server is live"""
             self.logger.info(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
+            
             # Check if a SSH connection is possible and the
             # provided directory is accesible, returns ssh object
-            self.live = self.__check_ssh__(host=self.source_host,
-                               username=self.source_user,
-                               remote_dir=source_dir)
+            live = self.__check_ssh__(host=self.gs.source_host,
+                                           username=self.gs.source_user,
+                                           remote_dir=job.source_dir)
 
-            if self.live is True:
-
-                # Set target for new backup
-                subfolder = self.get_basename(source_dir)
-
-                # Set previous backup target
-                prev_target = self.get_previous_target(target_dir, prev_id, subfolder)
-
-                # Set backup source
-                backup_source = self.get_backup_source(source_dir)
-
-                # Set backup target
-                backup_target = self.get_backup_target(target_dir, new_id, subfolder)
-
-                self.start_rsync(prev_id,
-                                 new_id,
-                                 subfolder,
-                                 prev_target,
-                                 backup_source,
-                                 backup_target)
+            if live:
+                self.rsync(job)
 
                 # Update current directory
-                if '--dry-run' in self.extra_arguments:
+                if job.dry_run:
                     self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of statefile.' + c.ENDC)
-                    # rotate.start_rotation(path=target_dir, dry_run=True, exclude=prev_target)
                 else:
-                    self.update_state(source_dir, new_id, target_dir)
+                    self.update_state(job.source_dir, job.new_id, job.target_dir)
                     self.logger.info(c.WARNING + c.BOLD + '  * Starting rotation of backup_target' + c.ENDC)
-                    rotate.start_rotation(path=target_dir, dry_run=False, exclude=prev_target)
-
-                new = True
+                    rotate.start_rotation(path=job.target_dir, dry_run=False, exclude=job.prev_target)
+                
+                new_id = job.new_id
+                update = True
         else:
             # No backup performed
             self.logger.info(c.FAIL + c.BOLD + '  *** Backup is already perfomed today, skipping... ***\n' + c.ENDC)
-            new = False
+            update = False
 
-        return new_id, new
+        return new_id, update
 
     def send_message(self, title, subtitle, message):
         ssh_server = '{}@{}'.format(self.source_user, self.source_host)
@@ -224,85 +287,13 @@ class Backup():
         with open(state_file, 'w') as f:
             f.write(new_id)
 
-    def get_previous_id(self, source_dir):
-        """Retrieve last backup date for source dir."""
-        self.logger.info(c.OKBLUE + c.BOLD + '  * Checking for last backup date' + c.ENDC)
-        source_hash = self.__create_hash__(source_dir)
-        self.logger.info('    - Source hash = {}'.format(source_hash))
-
-        state_file = os.path.join(self.state_dir, str(source_hash))
-        if os.path.isfile(state_file):
-            with open(state_file, 'r') as f:
-                line = f.readline()
-                self.logger.info('    - {}'.format(line.rstrip()))
-                return line
-        else:
-            self.logger.info(c.WARNING + '    - No statefile found' + c.ENDC)
-            self.logger.info(c.FAIL + '    - No link-dest available' + c.ENDC)
-            return ''
-
-    def get_new_id(self, target_dir):
-        """Generte new id based on current date."""
-        new_id = datetime.now().strftime('%Y-%m-%d')
-
-        if self.dry_run is False:
-            self.prep_rsync(target_dir, new_id)
-
-        return new_id
-
-    def __create_hash__(self, source_dir):
-        """Create SHA1 hash from source_dir name.
-
-        Used to store last backup date for that specific source dir.
-        """
-        return hashlib.sha1(source_dir.encode('UTF-8')).hexdigest()
-
-    def get_previous_target(self, target_dir, prev_id, subfolder):
-        """Determine the previous backup target (to be used as link dest)."""
-        return os.path.join(target_dir, prev_id, subfolder)
-
-    def get_basename(self, source_dir):
-        """Returns the basename of the source directory."""
-        return os.path.basename(os.path.normpath(source_dir))
-
-    def get_backup_source(self, source_dir):
-        """if source_user and source_host are not blank.
-
-        set backup source to remote location
-        """
-        if self.source_user and self.source_host:
-            backup_source = '{}@{}:{}'.format(self.source_user, self.source_host, source_dir)
-        else:
-            backup_source = source_dir
-
-        return backup_source
-
-    def get_backup_target(self, target_dir, new_id, subfolder):
-        # if target_user and target_host are not blank,
-        # set backup source to remote location
-        backup_path = os.path.join(target_dir, new_id, subfolder)
-        if self.target_user and self.target_host:
-            backup_target = '{}@{}:{}'.format(self.target_user, self.target_host, backup_path)
-        else:
-            backup_target = backup_path
-
-        return backup_target
-
-    def get_log_date(self):
-        # Get timestamp for last modification
-        if os.path.isfile(self.log_file):
-            mod_time = os.path.getmtime(self.log_file)
-
-            # Return string in Y-m-d format
-            return datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d')
-        else:
-            return ''
-
     def __check_ssh__(self, host='', username='', remote_dir=''):
         """Check if server is live"""
         live = self.__ipcheck__(host, self.hwaddr)
+
         """Check is ssh connection can be made to source."""
         self.logger.info(c.OKBLUE + c.BOLD + '  * Checking SSH connection to remote source' + c.ENDC)
+
         if host and username and remote_dir and live:
             ssh_server = '{}@{}'.format(username, host)
             ssh_cmd = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', ssh_server, 'echo ok']
@@ -346,8 +337,9 @@ class Backup():
             self.logger.info(c.FAIL + '    - Server seems down' + c.ENDC)
             return False
 
-    def start_rsync(self, prev_id, new_id, subfolder, prev_target, backup_source, backup_target):
-        arguments = [
+    #def rsync(self, prev_id, new_id, subfolder, prev_target, backup_source, backup_target):
+    def rsync(self, job):
+        rsync_cmd = [
             "rsync",
             "--recursive",
             "--links",
@@ -363,62 +355,53 @@ class Backup():
         ]
 
         # Add exclude list to arguments
-        arguments.append("--exclude-from={}".format(self.rsync_exclude_list))
+        rsync_cmd.append("--exclude-from={}".format(job.rsync_exclude_list))
 
         # Add extra arguments to arguments list
-        arguments.extend(self.extra_arguments)
+        rsync_cmd.extend(job.extra_rsync_args)
 
         # Add link destination to arguments
-        arguments.append("--link-dest={}".format(prev_target))
+        rsync_cmd.append("--link-dest={}".format(job.prev_target))
 
         # Add backup source
-        arguments.append(backup_source)
+        rsync_cmd.append(job.backup_source)
 
         # Add backup target
-        arguments.append(backup_target)
+        rsync_cmd.append(job.backup_target)
 
         self.logger.info(c.HEADER + c.BOLD + '  * Backup configuration:' + c.ENDC)
-        self.logger.info('    - Source Directory   : {}'.format(backup_source))
-        self.logger.info('    - Target Directory   : {}'.format(backup_target))
-        self.logger.info('    - Previous Directory : {}'.format(prev_target))
-        self.logger.info('    - Previous snapshot  : {}'.format(prev_id))
-        self.logger.info('    - New snapshot       : {}'.format(new_id))
-        self.logger.info('    - Snapshot subfolder : {}'.format(subfolder))
-        self.logger.info('    - Extra rsync options: {}'.format(self.extra_arguments))
+        self.logger.info('    - Source Directory   : {}'.format(job.backup_source))
+        self.logger.info('    - Target Directory   : {}'.format(job.backup_target))
+        self.logger.info('    - Previous Directory : {}'.format(job.prev_target))
+        self.logger.info('    - Previous snapshot  : {}'.format(job.prev_id))
+        self.logger.info('    - New snapshot       : {}'.format(job.new_id))
+        self.logger.info('    - Snapshot subfolder : {}'.format(job.subfolder))
+        self.logger.info('    - Extra rsync options: {}'.format(job.self.extra_rsync_args))
         self.logger.info(c.HEADER + c.BOLD + '  * Running rsync with:' + c.ENDC)
-        for arg in arguments[1:]:
+        for arg in rsync_cmd[1:]:
         	self.logger.info('    {}'.format(arg))
 
         # Start the actual backup
         # Send message to the osx notifaction centre
-        self.send_message(title="Remote backup", subtitle=subfolder, message="Starting backup...")
+        self.send_message(title="Remote backup", subtitle=job.subfolder, message="Starting backup...")
 
         # Start backup...
-        import colorama
-        import random
-        colors = list(vars(colorama.Fore).values())
-        color = random.choice(colors)
-        rsynclogger = logging.getLogger('{}'.format(subfolder))
-        c_handler = logging.StreamHandler()
-        c_format = logging.Formatter(color + '%(message)s')
-        c_handler.setFormatter(c_format)
-        rsynclogger.addHandler(c_handler)
-
-        with subprocess.Popen(arguments,
+        with subprocess.Popen(rsync_cmd,
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE,
                               bufsize=1,
                               universal_newlines=False) as p:
 
             for line in p.stdout:
-                rsynclogger.info(line)
+                self.logger.info(line)
+
             for line in p.stderr:
-                rsynclogger.info(c.FAIL + line + c.ENDC)
+                self.logger.info(c.FAIL + line + c.ENDC)
 
         if p.returncode != 0:
             raise subprocess.CalledProcessError(p.returncode, p.args)
-            self.logfile.close()
-            self.errlogfile.close()
+            job.log_file.close()
+            job.errlogfile.close()
 
 
 if __name__ == '__main__':
