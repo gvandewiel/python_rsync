@@ -410,7 +410,7 @@ class Backup():
 
         # Start --dry-run for progress
         print('Dry run:')
-        _cmd = cmd.append('--dry-run ')
+        _cmd = rsync_cmd.append('--dry-run ')
         remainder = subprocess.Popen(_cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE).communicate()[0]
         mn = re.findall(r'Number of files: (\d+,\d+)', remainder)
         total_files = int(mn[0].replace(',',''))
