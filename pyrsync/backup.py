@@ -427,7 +427,7 @@ class Backup():
                               universal_newlines=False) as _p:
             self.logger.info('Checking output')
             for line in _p.stdout:
-                mn = re.findall(r'Number of files: (\d+,\d+)', line)
+                mn = re.findall(r'Number of files: (\d+,\d+)', str(line))
                 if mn:
                     total_files = int(mn[0].replace(',',''))
                     print('Number of files: ' + str(total_files))
