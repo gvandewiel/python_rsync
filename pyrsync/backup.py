@@ -424,7 +424,7 @@ class Backup():
         self.logger.info('{}'.format(out))
 
         self.logger.info('Checking output')
-        mn = re.findall(r'Number of files: (\d+,\d+)', out)
+        mn = re.findall(r'Number of files: (\d+,\d+)', str(out))
         total_files = int(mn[0].replace(',',''))
         print('Number of files: ' + str(total_files))
 
