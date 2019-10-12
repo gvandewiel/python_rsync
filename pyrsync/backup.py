@@ -427,7 +427,8 @@ class Backup():
             
         self.logger.info('Checking output')
         remainder = _p.communicate()[0]
-        self.logger.info('{}'.format(remainder))
+        for r in remainder.splitlines():
+            self.logger.info('{}'.format(r))
         mn = re.findall(r'Number of files: (\d+,\d+)', remainder)
         total_files = int(mn[0].replace(',',''))
         print('Number of files: ' + str(total_files))
