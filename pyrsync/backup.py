@@ -425,11 +425,11 @@ class Backup():
                               stderr=subprocess.PIPE,
                               shell=True)
             
-            self.logger.info('Checking output')
-            remainder = _p.communicate()[0]
-            mn = re.findall(r'Number of files: (\d+,\d+)', remainder)
-            total_files = int(mn[0].replace(',',''))
-            print('Number of files: ' + str(total_files))
+        self.logger.info('Checking output')
+        remainder = _p.communicate()[0]
+        mn = re.findall(r'Number of files: (\d+,\d+)', remainder)
+        total_files = int(mn[0].replace(',',''))
+        print('Number of files: ' + str(total_files))
 
         # Start the actual backup
         # Send message to the osx notifaction centre
