@@ -8,6 +8,7 @@ from datetime import datetime
 import configparser
 import hashlib
 import subprocess
+import re
 from wakeonlan import send_magic_packet
 import logging
 from .rotate import start_rotation
@@ -409,15 +410,22 @@ class Backup():
         	self.logger.info('    {}'.format(arg))
 
         # Start --dry-run for progress
+        _rsync_cmd = rsync_cmd
         print('Dry run:')
-        _cmd = rsync_cmd.append('--dry-run ')
-        remainder = subprocess.Popen(_cmd,
-                                     stdin=subprocess.PIPE,
-                                     stdout=subprocess.PIPE)
-        result = remainder.communicate()[0]
-        mn = re.findall(r'Number of files: (\d+,\d+)', result)
-        total_files = int(mn[0].replace(',',''))
-        print('Number of files: ' + str(total_files))
+        if not job.dry_run:
+            _rsync_cmd = rsync_cmd.append('--dry-run ')
+        
+        # Start backup...
+        with subprocess.Popen(rsync_cmd,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE,
+                              bufsize=1,
+                              universal_newlines=False) as _p:
+            for line in _p.stdout:
+                mn = re.findall(r'Number of files: (\d+,\d+)', line)
+                if mn:
+                    total_files = int(mn[0].replace(',',''))
+                    print('Number of files: ' + str(total_files))
 
         # Start the actual backup
         # Send message to the osx notifaction centre
