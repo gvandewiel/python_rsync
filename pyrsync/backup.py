@@ -403,7 +403,7 @@ class Backup():
         self.logger.info('    - Previous snapshot  : {}'.format(job.prev_id))
         self.logger.info('    - New snapshot       : {}'.format(job.new_id))
         self.logger.info('    - Snapshot subfolder : {}'.format(job.subfolder))
-        self.logger.info('    - Extra rsync options: {}'.format(job.self.extra_rsync_args))
+        self.logger.info('    - Extra rsync options: {}'.format(jobP.extra_rsync_args))
         self.logger.info(c.HEADER + c.BOLD + '  * Running rsync with:' + c.ENDC)
         for arg in rsync_cmd[1:]:
         	self.logger.info('    {}'.format(arg))
