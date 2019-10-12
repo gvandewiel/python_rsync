@@ -10,7 +10,7 @@ import hashlib
 import subprocess
 from wakeonlan import send_magic_packet
 import logging
-import rotate
+import .rotate
 
 logging.basicConfig(
     format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
@@ -173,7 +173,7 @@ class Backup():
     def __init__(self, settings_file='', extra_arguments=[]):
         """Backup class."""
         logging.basicConfig(
-            format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
+            format="%(message)s",
             level=logging.INFO,
             handlers=[logging.StreamHandler(sys.stdout)]
         )
@@ -232,7 +232,6 @@ class Backup():
             self.logger.info(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
             
             if self.__RemoteServerCheck__(job):
-                logger.info('Server is live...')
                 self.rsync(job)
 
                 # Update current directory
@@ -378,6 +377,7 @@ class Backup():
             "--human-readable",
             "--delete-excluded",
             "--ignore-existing",
+            "--progress",
             "--stats"
         ]
 
@@ -408,6 +408,14 @@ class Backup():
         for arg in rsync_cmd[1:]:
         	self.logger.info('    {}'.format(arg))
 
+        # Start --dry-run for progress
+        print('Dry run:')
+        _cmd = cmd.append('--dry-run ')
+        remainder = subprocess.Popen(_cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE).communicate()[0]
+        mn = re.findall(r'Number of files: (\d+,\d+)', remainder)
+        total_files = int(mn[0].replace(',',''))
+        print('Number of files: ' + str(total_files))
+
         # Start the actual backup
         # Send message to the osx notifaction centre
         self.send_message(title="Remote backup", subtitle=job.subfolder, message="Starting backup...")
@@ -421,6 +429,12 @@ class Backup():
 
             for line in p.stdout:
                 self.logger.info(line)
+                if 'ir-chk' in line:
+                    m = re.findall(r'ir-chk=(\d+)/(\d+)', line)
+                    progress = (1 * (int(m[0][1]) - int(m[0][0]))) / total_files
+                    sys.stdout.write('{ "complete": {} }'.format(progress))
+                else:
+                    sys.stdout.write('{}'.format(output))
 
             for line in p.stderr:
                 self.logger.info(c.FAIL + line + c.ENDC)
