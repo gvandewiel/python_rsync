@@ -94,7 +94,6 @@ class BackupJob():
             
         # Store extra rsync arguments
         self.extra_rsync_args = rsync_args
-        print(self.extra_rsync_args)
         # Add rsync exclude list
         self.rsync_exclude_list = os.path.join(self.loc.backup_root, 'rsync-exclude-list.txt')
 
@@ -312,8 +311,6 @@ class Backup():
                     self.logger.info(c.FAIL + '    - Trying to wake remote host' + c.ENDC)
                     send_magic_packet(str(hwaddr))
                     status,result = subprocess.getstatusoutput("ping -W10 c-1 " + str(host))
-                    print(status)
-                    print(result)
                     if status == 0:
                         break
             elif status == 0:
