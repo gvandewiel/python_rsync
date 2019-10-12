@@ -14,7 +14,7 @@ import logging
 from .rotate import start_rotation
 
 logging.basicConfig(
-    format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
+    format="%(message)s",
     level=logging.INFO,
     handlers=[logging.StreamHandler(sys.stdout)]
 )
@@ -408,7 +408,7 @@ class Backup():
         self.logger.info('    - Extra rsync options: {}'.format(job.extra_rsync_args))
         self.logger.info(c.HEADER + c.BOLD + '  * Running rsync with:' + c.ENDC)
         for arg in rsync_cmd[1:]:
-        	self.logger.info('    {}'.format(arg))
+        	self.logger.info('        {}'.format(arg))
 
         # Start --dry-run for progress
         _rsync_cmd = rsync_cmd
@@ -419,11 +419,13 @@ class Backup():
             _rsync_cmd = _rsync_cmd.append('--dry-run ')
         
         # Start backup...
+        self.logger.info('Determine total files...')
         with subprocess.Popen(_rsync_cmd,
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE,
                               bufsize=1,
                               universal_newlines=False) as _p:
+            self.logger.info('Checking output')
             for line in _p.stdout:
                 mn = re.findall(r'Number of files: (\d+,\d+)', line)
                 if mn:
