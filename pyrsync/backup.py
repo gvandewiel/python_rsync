@@ -10,7 +10,7 @@ import hashlib
 import subprocess
 from wakeonlan import send_magic_packet
 import logging
-import .rotate
+from .rotate import start_rotation
 
 logging.basicConfig(
     format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
@@ -240,7 +240,7 @@ class Backup():
                 else:
                     self.update_state(job.source_dir, job.new_id, job.target_dir)
                     self.logger.info(c.WARNING + c.BOLD + '  * Starting rotation of backup_target' + c.ENDC)
-                    rotate.start_rotation(path=job.target_dir, dry_run=False, exclude=job.prev_target)
+                    start_rotation(path=job.target_dir, dry_run=False, exclude=job.prev_target)
                 
                 new_id = job.new_id
                 update = True
