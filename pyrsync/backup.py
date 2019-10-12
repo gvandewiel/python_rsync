@@ -421,13 +421,9 @@ class Backup():
         # Start backup...
         self.logger.info('Determine total files...')
         out, err = subprocess.Popen(_rsync_cmd, stdout=subprocess.PIPE, universal_newlines=False).communicate()
-        self.logger.info('{}'.format(out))
-
-        self.logger.info('Checking output')
         mn = re.compile(r'Number of files: (\d+)').findall(out.decode('utf-8'))
-        print(mn)
         total_files = int(mn[0].replace(',',''))
-        print('Number of files: ' + str(total_files))
+        self.logger.info('Number of files: ' + str(total_files))
 
         # Start the actual backup
         # Send message to the osx notifaction centre
@@ -441,13 +437,13 @@ class Backup():
                               universal_newlines=False) as p:
 
             for line in p.stdout:
-                self.logger.info(line)
+                line = line.decode('utf-8')
                 if 'ir-chk' in line:
-                    m = re.findall(r'ir-chk=(\d+)/(\d+)', line.decode('utf-8'))
+                    m = re.findall(r'ir-chk=(\d+)/(\d+)', line)
                     progress = (1 * (int(m[0][1]) - int(m[0][0]))) / total_files
                     sys.stdout.write('{ "complete": {} }'.format(progress))
                 else:
-                    sys.stdout.write('{}'.format(output))
+                    sys.stdout.write('{}'.format(line))
 
             for line in p.stderr:
                 self.logger.info(c.FAIL + line + c.ENDC)
