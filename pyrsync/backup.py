@@ -420,7 +420,7 @@ class Backup():
         
         # Start backup...
         self.logger.info('Determine total files...')
-        out, err = subprocess.Popen(_rsync_cmd, stdout=subprocess.PIPE).communicate()
+        out, err = subprocess.Popen(_rsync_cmd, stdout=subprocess.PIPE, universal_newlines=False).communicate()
         self.logger.info('{}'.format(out))
 
         self.logger.info('Checking output')
