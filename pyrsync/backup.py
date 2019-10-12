@@ -420,21 +420,20 @@ class Backup():
         
         # Start backup...
         self.logger.info('Determine total files...')
-        with subprocess.Popen(_rsync_cmd,
+        _p = subprocess.Popen(_rsync_cmd,
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE,
-                              bufsize=1,
-                              universal_newlines=False) as _p:
+                              shell=True)
+            
             self.logger.info('Checking output')
-            for line in _p.stdout:
-                mn = re.findall(r'Number of files: (\d+,\d+)', str(line))
-                if mn:
-                    total_files = int(mn[0].replace(',',''))
-                    print('Number of files: ' + str(total_files))
+            remainder = _p.communicate()[0]
+            mn = re.findall(r'Number of files: (\d+,\d+)', remainder)
+            total_files = int(mn[0].replace(',',''))
+            print('Number of files: ' + str(total_files))
 
         # Start the actual backup
         # Send message to the osx notifaction centre
-        self.send_message(title="Remote backup", subtitle=job.subfolder, message="Starting backup...")
+        # self.send_message(title="Remote backup", subtitle=job.subfolder, message="Starting backup...")
 
         # Start backup...
         with subprocess.Popen(rsync_cmd,
