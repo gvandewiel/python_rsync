@@ -430,12 +430,13 @@ class Backup():
         # self.send_message(title="Remote backup", subtitle=job.subfolder, message="Starting backup...")
 
         # Start backup...
+        self.logger.info('Starting actual backup...')
         with subprocess.Popen(rsync_cmd,
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE,
                               bufsize=1,
                               universal_newlines=False) as p:
-
+            self.logger.info('Processing output...')
             for line in p.stdout:
                 line = line.decode('utf-8')
                 if 'ir-chk' in line:
@@ -443,10 +444,7 @@ class Backup():
                     progress = (1 * (int(m[0][1]) - int(m[0][0]))) / total_files
                     sys.stdout.write('{ "complete": {} }'.format(progress))
                 else:
-                    sys.stdout.write('{}'.format(line))
-
-            for line in p.stderr:
-                self.logger.info(c.FAIL + line + c.ENDC)
+                    sys.stdout.write(line)
 
         if p.returncode != 0:
             raise subprocess.CalledProcessError(p.returncode, p.args)
