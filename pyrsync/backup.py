@@ -411,7 +411,6 @@ class Backup():
 
         # Start --dry-run for progress
         _rsync_cmd = rsync_cmd
-        print('Dry run:')
         if job.dry_run:
             _rsync_cmd = rsync_cmd
         else:
