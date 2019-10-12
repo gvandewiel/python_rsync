@@ -420,15 +420,12 @@ class Backup():
         
         # Start backup...
         self.logger.info('Determine total files...')
-        _p = subprocess.Popen(_rsync_cmd,
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE,
-                              shell=True)
+        out, err = subprocess.Popen(_rsync_cmd, stdout=subprocess.PIPE).communicate()
             
         self.logger.info('Checking output')
-        remainder = _p.communicate()[0]
-        for r in remainder.splitlines():
+        for r in out.splitlines():
             self.logger.info('{}'.format(r))
+        
         mn = re.findall(r'Number of files: (\d+,\d+)', remainder)
         total_files = int(mn[0].replace(',',''))
         print('Number of files: ' + str(total_files))
