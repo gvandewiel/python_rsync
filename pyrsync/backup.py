@@ -53,9 +53,10 @@ class BackupLocation():
             # os.makedirs(self.state_dir)
 
 class BackupJob():
-    def __init__(self, location, settings, *rsync_args):
+    def __init__(self, location, settings, rsync_args):
         # Make BackupLocation object available
         self.loc = location
+        rsync_args = list(rsync_args)
 
         # Retrieve settings
         self.source_dir = settings['source_dir']
@@ -93,7 +94,7 @@ class BackupJob():
             
         # Store extra rsync arguments
         self.extra_rsync_args = rsync_args
-        
+        print(self.extra_rsync_args)
         # Add rsync exclude list
         self.rsync_exclude_list = os.path.join(self.loc.backup_root, 'rsync-exclude-list.txt')
 
@@ -171,7 +172,7 @@ class Backup():
     over an SSH connection.
     """
 
-    def __init__(self, settings_file='', extra_arguments=[]):
+    def __init__(self, settings_file='', extra_arguments=[] ):
         """Backup class."""
         logging.basicConfig(
             format="%(message)s",
