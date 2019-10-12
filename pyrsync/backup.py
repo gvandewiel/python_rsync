@@ -424,7 +424,7 @@ class Backup():
         self.logger.info('{}'.format(out))
 
         self.logger.info('Checking output')
-        mn = re.compile(rb'Number of files: (\d+)').findall(out)
+        mn = re.compile(r'Number of files: (\d+)').findall(out.decode('utf-8'))
         print(mn)
         total_files = int(mn[0].replace(',',''))
         print('Number of files: ' + str(total_files))
@@ -443,7 +443,7 @@ class Backup():
             for line in p.stdout:
                 self.logger.info(line)
                 if 'ir-chk' in line:
-                    m = re.findall(rb'ir-chk=(\d+)/(\d+)', line)
+                    m = re.findall(r'ir-chk=(\d+)/(\d+)', line.decode('utf-8'))
                     progress = (1 * (int(m[0][1]) - int(m[0][0]))) / total_files
                     sys.stdout.write('{ "complete": {} }'.format(progress))
                 else:
