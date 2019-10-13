@@ -91,7 +91,7 @@ class BackupJob():
             self.force = True
             rsync_args.remove('--force')
         else:
-            self.foce = False
+            self.force = False
             
         # Store extra rsync arguments
         self.extra_rsync_args = rsync_args
