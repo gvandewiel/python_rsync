@@ -236,7 +236,7 @@ class Backup():
         self.logger.info('\tTarget:\t{}'.format(job.target_dir) + c.ENDC)
         
         # Start backup if not performed today
-        if job.new_id != job.prev_id:
+        if job.new_id != job.prev_id or job.force:
             """Check if server is live"""
             self.logger.info(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
             
