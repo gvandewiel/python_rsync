@@ -304,12 +304,12 @@ class Backup():
             Checks if server is available by sending a ping.
             If the response is false, upto 5 WOL commands will be send.
             """
-            status, result = sp.getstatusoutput("ping -W2 -c1 " + str(host))
+            status, _ = sp.getstatusoutput("ping -W2 -c1 " + str(host))
             if status != 0:
                 for cnt in range(0,5):
-                    self.logger.info(c.FAIL + '    - Trying to wake remote host' + c.ENDC)
+                    self.logger.info(c.FAIL + '    - Trying to wake remote host, try ' + str(cnt) + c.ENDC)
                     send_magic_packet(str(hwaddr))
-                    status,result = sp.getstatusoutput("ping -W10 c-1 " + str(host))
+                    status, _ = sp.getstatusoutput("ping -W10 c-1 " + str(host))
                     if status == 0:
                         break
             elif status == 0:
@@ -418,7 +418,7 @@ class Backup():
 
         # Start --dry-run for progress
         self.logger.debug('Determine total files...')
-        out, err = sp.Popen(_rsync_cmd, stdout=sp.PIPE, universal_newlines=False).communicate()
+        out, _ = sp.Popen(_rsync_cmd, stdout=sp.PIPE, universal_newlines=False).communicate()
         mn = re.compile(r'Number of files: (\d+)').findall(out.decode('utf-8'))
         total_files = int(mn[0].replace(',',''))
         self.logger.debug('Number of files: ' + str(total_files))
@@ -443,7 +443,7 @@ class Backup():
                 else:
                     self.logger.info('{:>3} ==> {}'.format(progress, line))
                     
-                json.dump({ "complete": progress }, sys.stdout)
+                json.dump({ "progress": progress }, sys.stdout)
         
         if p.returncode != 0:
             self.logger.info(c.FAIL + c.BOLD + '  * Rsync exited with errorcode {}'.format(p.returncode) + c.ENDC)
