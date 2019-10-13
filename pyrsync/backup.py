@@ -416,7 +416,7 @@ class Backup():
         self.logger.info(c.FAIL + str(_rsync_cmd) + c.ENDC)
         
         if not job.dry_run:
-            _rsync_cmd = _rsync_cmd.append('--dry-run ')
+            _rsync_cmd.append('--dry-run ')
         
         self.logger.info(c.FAIL + str(_rsync_cmd) + c.ENDC)
         out, err = subprocess.Popen(_rsync_cmd, stdout=subprocess.PIPE, universal_newlines=False).communicate()
