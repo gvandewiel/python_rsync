@@ -434,10 +434,13 @@ class Backup():
         with sp.Popen(rsync_cmd, stdout=sp.PIPE, bufsize=1, universal_newlines=False) as p:
             self.logger.info('Processing output...')
             for line in p.stdout:
-                print('        ==> {}'.format(line))
                 line = line.decode('utf-8')
                 if 'ir-chk' in line:
                     m = re.findall(r'ir-chk=(\d+)/(\d+)', line)
+                    progress = (1 * (int(m[0][1]) - int(m[0][0]))) / total_files
+                    sys.stdout.write('{ "complete": {} }'.format(progress))
+                elif 'to-check' in line:
+                    m = re.findall(r'to-check=(\d+)/(\d+)', line)
                     progress = (1 * (int(m[0][1]) - int(m[0][0]))) / total_files
                     sys.stdout.write('{ "complete": {} }'.format(progress))
                 else:
