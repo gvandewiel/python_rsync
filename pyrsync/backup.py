@@ -222,7 +222,7 @@ class Backup():
                     self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
                 elif update and not job.dry_run:
                     self.logger.info(c.OKBLUE + c.BOLD + '  * Update symlink of link-dest' + c.ENDC)
-                    self.update_symlink(new_id)
+                    self.update_symlink(job)
             else:
                 self.logger.info(c.WARNING + c.BOLD + '  * No Backup of "{}" is performed'.format(job.source_dir) + c.ENDC)
 
@@ -248,7 +248,7 @@ class Backup():
                 if job.dry_run:
                     self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of statefile.' + c.ENDC)
                 else:
-                    self.logger.info(c.OKGREEN + c.BOLD + '  * Finished rsync job, updating statefile')
+                    self.logger.info(c.OKGREEN + c.BOLD + '  * Finished rsync job, updating statefile' + c.END)
                     job.update_state()
                     self.logger.info(c.OKBLUE + c.BOLD + '  * Updated statefile with hash "{}" to {}'.format(job.hash, job.new_id) + c.ENDC)
                 
@@ -285,10 +285,10 @@ class Backup():
             if not os.path.exists(new_dir):
                 os.mkdir(new_dir)
 
-    def update_symlink(self, new_id):
+    def update_symlink(self, job):
         self.logger.info(c.OKBLUE + c.BOLD + '  * Creating symlink "current" directory' + c.ENDC)
-        src = os.path.join(self.backup_root, new_id)
-        dst = os.path.join(self.backup_root, 'current')
+        src = os.path.join(job.loc.backup_root, job.new_id)
+        dst = os.path.join(job.loc.backup_root, 'current')
         try:
             os.unlink(dst)
             os.symlink(src, dst)
