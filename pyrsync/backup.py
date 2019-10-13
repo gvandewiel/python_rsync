@@ -408,15 +408,11 @@ class Backup():
         	self.logger.info('        {}'.format(arg))
 
         # Start --dry-run for progress
-        _rsync_cmd = rsync_cmd
-        if job.dry_run:
-            _rsync_cmd = rsync_cmd
-        else:
-            _rsync_cmd = rsync_cmd
-            _rsync_cmd = _rsync_cmd.append('--dry-run ')
-        
-        # Start backup...
         self.logger.info('Determine total files...')
+        _rsync_cmd = rsync_cmd
+        if not job.dry_run:
+            _rsync_cmd = _rsync_cmd.append('--dry-run ')
+        self.logger.info(c.FAIL + _rsync_cmd + c.ENDC)
         out, err = subprocess.Popen(_rsync_cmd, stdout=subprocess.PIPE, universal_newlines=False).communicate()
         mn = re.compile(r'Number of files: (\d+)').findall(out.decode('utf-8'))
         total_files = int(mn[0].replace(',',''))
