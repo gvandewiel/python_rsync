@@ -444,12 +444,15 @@ class Backup():
                 else:
                     sys.stdout.write(line)
         
-        self.logger.info(c.OKGREEN + c.BOLD + '  * Rsync finished' + c.ENDC)
+        self.logger.info(c.OKGREEN + c.BOLD + '  * Rsync finished with {}'.format(p.returncode) + c.ENDC)
         
         if p.returncode != 0:
             self.logger.info(c.FAIL + c.BOLD + '  * Rsync exited with errorcode {}'.format(p.returncode) + c.ENDC)
             raise sp.CalledProcessError(p.returncode, p.args)
             job.log_file.close()
+        else:
+            print('passing....')
+            pass
 
 
 if __name__ == '__main__':
