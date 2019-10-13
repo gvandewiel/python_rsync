@@ -220,10 +220,10 @@ class Backup():
                 if job.dry_run:
                     self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
                 elif update:
-                    self.logger.info(c.OKBLUE + c.BOLD + '  * Update symlink of link-dest' + c.ENDC)
                     self.update_symlink(job)
             else:
                 self.logger.info(c.WARNING + c.BOLD + '  * No Backup of "{}" is performed'.format(job.source_dir) + c.ENDC)
+            print('\n')
 
         if self.live and self.gs.source_host and self.gs.source_user:
             self.send_message(title="Remote backup", subtitle="Finished", message="All backup tasks have finished")
@@ -247,9 +247,9 @@ class Backup():
                 if job.dry_run:
                     self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of statefile.' + c.ENDC)
                 else:
-                    self.logger.info(c.OKGREEN + c.BOLD + '  * Updating statefile' + c.ENDC)
+                    self.logger.info(c.OKBLUE + c.BOLD + '  * Updating statefile' + c.ENDC)
                     job.update_state()
-                    self.logger.info(c.OKBLUE + c.BOLD + '  * Updated statefile with hash "{}" to {}'.format(job.hash, job.new_id) + c.ENDC)
+                    self.logger.info(c.OKGREEN + '  * Updated statefile "{}" to {}'.format(job.hash, job.new_id) + c.ENDC)
                 
                 new_id = job.new_id
                 update = True
@@ -273,7 +273,7 @@ class Backup():
 
     def prep_rsync(self, job):
         """Create new subfolder."""
-        self.logger.info(c.OKBLUE + c.BOLD + '  * Creating backup target folder' + c.ENDC)
+        self.logger.debug(c.OKBLUE + c.BOLD + '  * Creating backup target folder' + c.ENDC)
         if job.loc.target_host and job.loc.target_user:
             # Remote target
             new_dir = '{}@{}:{}'.format(job.loc.target_user, job.loc.target_host, os.path.join(job.target_dir, job.new_id))
@@ -291,10 +291,10 @@ class Backup():
         try:
             os.unlink(dst)
             os.symlink(src, dst)
-            self.logger.info(c.OKGREEN + c.BOLD + "    - Symlink created" + c.ENDC)
+            self.logger.info(c.OKGREEN + "    - Symlink created" + c.ENDC)
         except:
             os.symlink(src, dst)
-            self.logger.info(c.OKGREEN + c.BOLD + "    - Symlink created" + c.ENDC)
+            self.logger.info(c.OKGREEN + "    - Symlink created" + c.ENDC)
 
     #def __check_ssh__(self, host='', username='', remote_dir=''):
     def __RemoteServerCheck__(self, job):
@@ -313,7 +313,7 @@ class Backup():
                     if status == 0:
                         break
             elif status == 0:
-                self.logger.info(c.OKGREEN + c.BOLD + '      * Server is available...' + c.ENDC)
+                self.logger.info(c.OKGREEN + '      * Server is available...' + c.ENDC)
                 return True
             else:
                 self.logger.info(c.FAIL + '      - Server seems down' + c.ENDC)
@@ -324,7 +324,7 @@ class Backup():
             ssh_cmd = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', ssh_server, 'echo True']
             test = sp.Popen(ssh_cmd, stdout=sp.PIPE).communicate()[0]
             if test:
-                self.logger.info(c.OKGREEN + c.BOLD + '      - SSH connection established' + c.ENDC)
+                self.logger.info(c.OKGREEN + '      - SSH connection established' + c.ENDC)
                 return True
             else:
                 self.logger.info(c.FAIL + '      - SSH connection could not be established' + c.ENDC)
@@ -341,9 +341,9 @@ class Backup():
             ssh.communicate()[0]
             _ret = ssh.returncode == 1
             if _ret:
-                self.logger.info(c.OKGREEN + '    - Directory "{}" exists'.format(remote_dir) + c.ENDC)
+                self.logger.info(c.OKGREEN + '      - Directory "{}" exists'.format(remote_dir) + c.ENDC)
             else:
-                self.logger.info(c.FAIL + '    - Directory "{}" does not exists'.format(remote_dir) + c.ENDC)
+                self.logger.info(c.FAIL + '      - Directory "{}" does not exists'.format(remote_dir) + c.ENDC)
             return _ret
 
         # Retrieve required values from job object
@@ -417,11 +417,11 @@ class Backup():
         	self.logger.info('        {}'.format(arg))
 
         # Start --dry-run for progress
-        self.logger.info('Determine total files...')
+        self.logger.debug('Determine total files...')
         out, err = sp.Popen(_rsync_cmd, stdout=sp.PIPE, universal_newlines=False).communicate()
         mn = re.compile(r'Number of files: (\d+)').findall(out.decode('utf-8'))
         total_files = int(mn[0].replace(',',''))
-        self.logger.info('Number of files: ' + str(total_files))
+        self.logger.debug('Number of files: ' + str(total_files))
 
         # Start the actual backup
         # Send message to the osx notifaction centre
@@ -430,7 +430,7 @@ class Backup():
         # Start backup...
         self.logger.info('Starting actual backup...')
         with sp.Popen(rsync_cmd, stdout=sp.PIPE, bufsize=1, universal_newlines=False) as p:
-            self.logger.info('Processing output...')
+            self.logger.info(c.HEADER + c.BOLD + '  * Rsync output' + c.ENDC)
             for line in p.stdout:
                 line = line.decode('utf-8')
                 if 'ir-chk' in line:
@@ -442,9 +442,7 @@ class Backup():
                     progress = (1 * (int(m[0][1]) - int(m[0][0]))) / total_files
                     json.dumps({ "complete": progress })
                 else:
-                    sys.stdout.write(line)
-        
-        self.logger.info(c.OKGREEN + c.BOLD + '  * Rsync finished with {}'.format(p.returncode) + c.ENDC)
+                    self.logger.info('    {}'.format(line))
         
         if p.returncode != 0:
             self.logger.info(c.FAIL + c.BOLD + '  * Rsync exited with errorcode {}'.format(p.returncode) + c.ENDC)
