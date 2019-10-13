@@ -169,9 +169,9 @@ class BackupJob():
         """Retrieve last backup date for source dir."""
 
         self.hash = self.__create_hash__(self.source_dir)
-        state_file = os.path.join(self.state_dir, str(self.hash))
+        state_file = os.path.join(self.loc.state_dir, str(self.hash))
         with open(state_file, 'w') as f:
-            f.write(new_id)
+            f.write(self.new_id)
 
 class Backup():
     """Backup Script.
