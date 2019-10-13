@@ -165,6 +165,14 @@ class BackupJob():
             backup_target = backup_path
         return backup_target
 
+    def update_state(self):
+        """Retrieve last backup date for source dir."""
+
+        self.hash = self.__create_hash__(self.source_dir)
+        state_file = os.path.join(self.state_dir, str(self.hash))
+        with open(state_file, 'w') as f:
+            f.write(new_id)
+
 class Backup():
     """Backup Script.
 
@@ -210,12 +218,11 @@ class Backup():
 
             if new_id:
                 self.logger.info(c.OKGREEN + c.BOLD + '  * Backup of "{}" is performed'.format(job.source_dir) + c.ENDC)
-                if update:
-                    if job.dry_run:
-                        self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
-                    else:
-                        self.logger.info(c.OKBLUE + c.BOLD + '  * Update symlink of link-dest' + c.ENDC)
-                        self.update_symlink(new_id)
+                if update and job.dry_run:
+                    self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
+                elif update and not job.dry_run:
+                    self.logger.info(c.OKBLUE + c.BOLD + '  * Update symlink of link-dest' + c.ENDC)
+                    self.update_symlink(new_id)
             else:
                 self.logger.info(c.WARNING + c.BOLD + '  * No Backup of "{}" is performed'.format(job.source_dir) + c.ENDC)
 
@@ -234,15 +241,16 @@ class Backup():
             self.logger.info(c.OKBLUE + c.BOLD + '  * Checking if remote source is available' + c.ENDC)
             
             if self.__RemoteServerCheck__(job):
+                # Start rsync backup
                 self.rsync(job)
 
                 # Update current directory
                 if job.dry_run:
                     self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of statefile.' + c.ENDC)
                 else:
-                    self.update_state(job.source_dir, job.new_id, job.target_dir)
-                    self.logger.info(c.WARNING + c.BOLD + '  * Starting rotation of backup_target' + c.ENDC)
-                    start_rotation(path=job.target_dir, dry_run=False, exclude=job.prev_target)
+                    self.logger.info(c.OKGREEN + c.BOLD + '  * Finished rsync job, updating statefile')
+                    job.update_state()
+                    self.logger.info(c.OKBLUE + c.BOLD + '  * Updated statefile with hash "{}" to {}'.format(job.hash, job.new_id) + c.ENDC)
                 
                 new_id = job.new_id
                 update = True
@@ -288,16 +296,6 @@ class Backup():
         except:
             os.symlink(src, dst)
             self.logger.info(c.OKGREEN + c.BOLD + "    - Symlink created" + c.ENDC)
-
-    def update_state(self, source_dir, new_id, target_dir):
-        """Retrieve last backup date for source dir."""
-
-        source_hash = self.__create_hash__(source_dir)
-        self.logger.info(c.OKBLUE + c.BOLD + '  * Updating statefile with hash "{}" to {}'.format(source_hash, new_id) + c.ENDC)
-
-        state_file = os.path.join(self.state_dir, str(source_hash))
-        with open(state_file, 'w') as f:
-            f.write(new_id)
 
     #def __check_ssh__(self, host='', username='', remote_dir=''):
     def __RemoteServerCheck__(self, job):
