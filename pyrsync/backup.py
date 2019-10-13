@@ -364,7 +364,7 @@ class Backup():
 
     #def rsync(self, prev_id, new_id, subfolder, prev_target, backup_source, backup_target):
     def rsync(self, job):
-        rsync_cmd, _rsync_cmd = [
+        rsync_cmd = [
             "rsync",
             "--recursive",
             "--links",
@@ -379,6 +379,7 @@ class Backup():
             "--progress",
             "--stats"
         ]
+        _rsync_cmd = rsync_cmd
         
         # Add exclude list to arguments
         rsync_cmd.append("--exclude-from={}".format(job.rsync_exclude_list))
