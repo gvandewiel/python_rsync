@@ -409,6 +409,7 @@ class Backup():
 
         # Start --dry-run for progress
         self.logger.info('Determine total files...')
+        self.logger.info(c.FAIL + str(job.dry_run) + c.ENDC)
         _rsync_cmd = rsync_cmd
         if not job.dry_run:
             _rsync_cmd = _rsync_cmd.append('--dry-run ')
