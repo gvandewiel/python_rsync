@@ -443,7 +443,7 @@ class Backup():
                 else:
                     self.logger.info('{:>3} ==> {}'.format(progress, line))
                     
-                json.dump({ "progress": progress }, sys.stdout)
+                print('{ "progress": {} }'.format(progress))
         
         if p.returncode != 0:
             self.logger.info(c.FAIL + c.BOLD + '  * Rsync exited with errorcode {}'.format(p.returncode) + c.ENDC)
