@@ -263,15 +263,16 @@ class Backup():
         ssh_cmd = ['ssh', ssh_server, remote_cmd]
         sp.check_output(ssh_cmd)
 
-    def prep_rsync(self, target_dir, new_id):
+    def prep_rsync(self, job):
         """Create new subfolder."""
-        if self.target_host and self.target_user:
+        self.logger.info(c.OKBLUE + c.BOLD + '  * Creating backup target folder' + c.ENDC)
+        if job.loc.target_host and job.loc.target_user:
             # Remote target
-            new_dir = '{}@{}:{}'.format(self.target_user, self.target_host, os.path.join(target_dir,new_id))
+            new_dir = '{}@{}:{}'.format(job.loc.target_user, job.loc.target_host, os.path.join(job.target_dir, job.new_id))
             sp.Popen(['rsync', '--quiet', '/dev/null', new_dir])
         else:
             # Local target
-            new_dir = '{}'.format(os.path.join(target_dir,new_id))
+            new_dir = '{}'.format(os.path.join(job.target_dir, job.new_id))
             if not os.path.exists(new_dir):
                 os.mkdir(new_dir)
 
@@ -402,6 +403,8 @@ class Backup():
         # Add backup target
         rsync_cmd.append(job.backup_target)
         _rsync_cmd.append(job.backup_target)
+
+        self.prep_rsync(job)
 
         self.logger.info(c.HEADER + c.BOLD + '  * Backup configuration:' + c.ENDC)
         self.logger.info('    - Source Directory   : {}'.format(job.backup_source))
