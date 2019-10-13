@@ -7,7 +7,7 @@ import sys
 from datetime import datetime
 import configparser
 import hashlib
-import subprocess
+import subprocess as sp
 import re
 from wakeonlan import send_magic_packet
 import logging
@@ -261,14 +261,14 @@ class Backup():
         ssh_server = '{}@{}'.format(self.source_user, self.source_host)
         remote_cmd = "osascript -e 'display notification \"{message}\" with title \"{title} ({now})\" subtitle \"{subtitle}\"'".format(title=title, subtitle=subtitle, message=message, now=datetime.now().strftime('%d-%m-%Y %H:%M'))
         ssh_cmd = ['ssh', ssh_server, remote_cmd]
-        subprocess.check_output(ssh_cmd)
+        sp.check_output(ssh_cmd)
 
     def prep_rsync(self, target_dir, new_id):
         """Create new subfolder."""
         if self.target_host and self.target_user:
             # Remote target
             new_dir = '{}@{}:{}'.format(self.target_user, self.target_host, os.path.join(target_dir,new_id))
-            subprocess.Popen(['rsync', '--quiet', '/dev/null', new_dir])
+            sp.Popen(['rsync', '--quiet', '/dev/null', new_dir])
         else:
             # Local target
             new_dir = '{}'.format(os.path.join(target_dir,new_id))
@@ -305,12 +305,12 @@ class Backup():
             Checks if server is available by sending a ping.
             If the response is false, upto 5 WOL commands will be send.
             """
-            status, result = subprocess.getstatusoutput("ping -W2 -c1 " + str(host))
+            status, result = sp.getstatusoutput("ping -W2 -c1 " + str(host))
             if status != 0:
                 for cnt in range(0,5):
                     self.logger.info(c.FAIL + '    - Trying to wake remote host' + c.ENDC)
                     send_magic_packet(str(hwaddr))
-                    status,result = subprocess.getstatusoutput("ping -W10 c-1 " + str(host))
+                    status,result = sp.getstatusoutput("ping -W10 c-1 " + str(host))
                     if status == 0:
                         break
             elif status == 0:
@@ -323,7 +323,7 @@ class Backup():
         def __AccessTest__(host, username):
             ssh_server = '{}@{}'.format(username, host)
             ssh_cmd = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', ssh_server, 'echo True']
-            test = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE).communicate()[0]
+            test = sp.Popen(ssh_cmd, stdout=sp.PIPE).communicate()[0]
             if test:
                 self.logger.info(c.OKGREEN + c.BOLD + '      - SSH connection established' + c.ENDC)
                 return True
@@ -338,7 +338,7 @@ class Backup():
             # Check remote dir
             ssh_server = '{}@{}'.format(username, host)
             ssh_cmd = ['ssh', ssh_server, '[ ! -d \'{}\' ]'.format(remote_dir)]
-            ssh = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE)
+            ssh = sp.Popen(ssh_cmd, stdout=sp.PIPE)
             ssh.communicate()[0]
             _ret = ssh.returncode == 1
             if _ret:
@@ -417,7 +417,7 @@ class Backup():
 
         # Start --dry-run for progress
         self.logger.info('Determine total files...')
-        out, err = subprocess.Popen(_rsync_cmd, stdout=subprocess.PIPE, universal_newlines=False).communicate()
+        out, err = sp.Popen(_rsync_cmd, stdout=sp.PIPE, universal_newlines=False).communicate()
         mn = re.compile(r'Number of files: (\d+)').findall(out.decode('utf-8'))
         total_files = int(mn[0].replace(',',''))
         self.logger.info('Number of files: ' + str(total_files))
@@ -428,13 +428,10 @@ class Backup():
 
         # Start backup...
         self.logger.info('Starting actual backup...')
-        with subprocess.Popen(rsync_cmd,
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE,
-                              bufsize=1,
-                              universal_newlines=False) as p:
+        with sp.Popen(rsync_cmd, stdout=sp.PIPE, bufsize=1, universal_newlines=False) as p:
             self.logger.info('Processing output...')
             for line in p.stdout:
+                print('        ==> {}'.format(line))
                 line = line.decode('utf-8')
                 if 'ir-chk' in line:
                     m = re.findall(r'ir-chk=(\d+)/(\d+)', line)
@@ -444,7 +441,7 @@ class Backup():
                     sys.stdout.write(line)
 
         if p.returncode != 0:
-            raise subprocess.CalledProcessError(p.returncode, p.args)
+            raise sp.CalledProcessError(p.returncode, p.args)
             job.log_file.close()
             job.errlogfile.close()
 
