@@ -431,6 +431,7 @@ class Backup():
         self.logger.info('Starting actual backup...')
         with sp.Popen(rsync_cmd, stdout=sp.PIPE, bufsize=1, universal_newlines=False) as p:
             self.logger.info(c.HEADER + c.BOLD + '  * Rsync output' + c.ENDC)
+            progress = 0
             for line in p.stdout:
                 line = line.decode('utf-8')
                 if 'ir-chk' in line:
@@ -442,7 +443,7 @@ class Backup():
                     progress = (1 * (int(m[0][1]) - int(m[0][0]))) / total_files
                     json.dumps({ "complete": progress })
                 else:
-                    self.logger.info('{:3} ==> {}'.format(progress, line))
+                    self.logger.info('{:>3} ==> {}'.format(progress, line))
         
         if p.returncode != 0:
             self.logger.info(c.FAIL + c.BOLD + '  * Rsync exited with errorcode {}'.format(p.returncode) + c.ENDC)
