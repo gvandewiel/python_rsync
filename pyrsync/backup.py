@@ -437,13 +437,13 @@ class Backup():
                 if 'ir-chk' in line:
                     m = re.findall(r'ir-chk=(\d+)/(\d+)', line)
                     progress = (1 * (int(m[0][1]) - int(m[0][0]))) / total_files
-                    json.dumps({ "complete": progress })
                 elif 'to-check' in line:
                     m = re.findall(r'to-check=(\d+)/(\d+)', line)
                     progress = (1 * (int(m[0][1]) - int(m[0][0]))) / total_files
-                    json.dumps({ "complete": progress })
                 else:
                     self.logger.info('{:>3} ==> {}'.format(progress, line))
+                    
+                json.dump({ "complete": progress }, sys.stdout)
         
         if p.returncode != 0:
             self.logger.info(c.FAIL + c.BOLD + '  * Rsync exited with errorcode {}'.format(p.returncode) + c.ENDC)
