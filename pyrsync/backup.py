@@ -215,12 +215,11 @@ class Backup():
         # Loop over all backup sets
         for job in self.jobs:
             new_id, update = self.execute_backup(job)
-
             if new_id:
                 self.logger.info(c.OKGREEN + c.BOLD + '  * Backup of "{}" is performed'.format(job.source_dir) + c.ENDC)
-                if update and job.dry_run:
+                if job.dry_run:
                     self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of symlink.' + c.ENDC)
-                elif update and not job.dry_run:
+                elif update:
                     self.logger.info(c.OKBLUE + c.BOLD + '  * Update symlink of link-dest' + c.ENDC)
                     self.update_symlink(job)
             else:
@@ -444,7 +443,9 @@ class Backup():
                     json.dumps({ "complete": progress })
                 else:
                     sys.stdout.write(line)
-
+        
+        self.logger.info(c.OKGREEN + c.BOLD + '  * Rsync finished' + c.ENDC)
+        
         if p.returncode != 0:
             self.logger.info(c.FAIL + c.BOLD + '  * Rsync exited with errorcode {}'.format(p.returncode) + c.ENDC)
             raise sp.CalledProcessError(p.returncode, p.args)
