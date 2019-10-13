@@ -364,7 +364,7 @@ class Backup():
 
     #def rsync(self, prev_id, new_id, subfolder, prev_target, backup_source, backup_target):
     def rsync(self, job):
-        rsync_cmd = [
+        rsync_cmd, _rsync_cmd = [
             "rsync",
             "--recursive",
             "--links",
@@ -379,21 +379,28 @@ class Backup():
             "--progress",
             "--stats"
         ]
-
+        
         # Add exclude list to arguments
         rsync_cmd.append("--exclude-from={}".format(job.rsync_exclude_list))
+        _rsync_cmd.append("--exclude-from={}".format(job.rsync_exclude_list))
 
         # Add extra arguments to arguments list
         rsync_cmd.extend(job.extra_rsync_args)
+        _rsync_cmd.extend(job.extra_rsync_args)
+        if not job.dry_run:
+            _rsync_cmd.append("--dry-run")
 
         # Add link destination to arguments
         rsync_cmd.append("--link-dest={}".format(job.prev_target))
+        _rsync_cmd.append("--link-dest={}".format(job.prev_target))
 
         # Add backup source
         rsync_cmd.append(job.backup_source)
+        _rsync_cmd.append(job.backup_source)
 
         # Add backup target
         rsync_cmd.append(job.backup_target)
+        _rsync_cmd.append(job.backup_target)
 
         self.logger.info(c.HEADER + c.BOLD + '  * Backup configuration:' + c.ENDC)
         self.logger.info('    - Source Directory   : {}'.format(job.backup_source))
@@ -409,16 +416,6 @@ class Backup():
 
         # Start --dry-run for progress
         self.logger.info('Determine total files...')
-        self.logger.info(c.FAIL + str(job.dry_run) + c.ENDC)
-        
-        _rsync_cmd = rsync_cmd
-        
-        self.logger.info(c.FAIL + str(_rsync_cmd) + c.ENDC)
-        
-        if not job.dry_run:
-            _rsync_cmd.append('--dry-run ')
-        
-        self.logger.info(c.FAIL + str(_rsync_cmd) + c.ENDC)
         out, err = subprocess.Popen(_rsync_cmd, stdout=subprocess.PIPE, universal_newlines=False).communicate()
         mn = re.compile(r'Number of files: (\d+)').findall(out.decode('utf-8'))
         total_files = int(mn[0].replace(',',''))
