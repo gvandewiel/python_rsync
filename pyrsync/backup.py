@@ -242,12 +242,12 @@ class Backup():
             if self.__RemoteServerCheck__(job):
                 # Start rsync backup
                 self.rsync(job)
-
+                self.logger.info(c.OKGREEN + c.BOLD + '  * Finished rsync job' + c.END)
                 # Update current directory
                 if job.dry_run:
                     self.logger.info(c.WARNING + c.BOLD + '  * "--dry-run" detected, no update of statefile.' + c.ENDC)
                 else:
-                    self.logger.info(c.OKGREEN + c.BOLD + '  * Finished rsync job, updating statefile' + c.END)
+                    self.logger.info(c.OKGREEN + c.BOLD + '  * Updating statefile' + c.END)
                     job.update_state()
                     self.logger.info(c.OKBLUE + c.BOLD + '  * Updated statefile with hash "{}" to {}'.format(job.hash, job.new_id) + c.ENDC)
                 
