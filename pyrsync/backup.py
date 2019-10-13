@@ -379,7 +379,7 @@ class Backup():
             "--progress",
             "--stats"
         ]
-        _rsync_cmd = rsync_cmd
+        _rsync_cmd = rsync_cmd.copy()
         
         # Add exclude list to arguments
         rsync_cmd.append("--exclude-from={}".format(job.rsync_exclude_list))
